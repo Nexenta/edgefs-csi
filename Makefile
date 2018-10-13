@@ -1,0 +1,26 @@
+PLUGIN_NAME=edgefs-csi
+IMAGE_NAME=$(PLUGIN_NAME)
+DOCKER_FILE=Dockerfile
+REGISTRY=10.3.30.75:5000
+IMAGE_TAG=latest
+
+.PHONY: all nfs 
+
+all: nfs
+
+.get:
+	GOPATH=`pwd` go get || true
+	touch $@
+
+nfs: .get
+	GOPATH=`pwd` go build -o $(PLUGIN_NAME) main.go
+
+build-container: nfs 
+	docker build -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
+
+push-container: build-container
+	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+
+clean:
+	-rm -rf $(PLUGIN_NAME) src .get
