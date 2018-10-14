@@ -24,14 +24,13 @@
 package csi
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 	"strings"
 	"../../../grpc-efsproxy/cluster"
 	"../../../grpc-efsproxy/tenant"
-//	"../../../grpc-efsproxy/service"
+	"../../../grpc-efsproxy/service"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -39,7 +38,8 @@ import (
 )
 
 const (
-	defaultSize      int = 1024
+	defaultSize		int = 1024
+	defaultEfsProxyPort	int32 = 6789
 )
 
 var (
@@ -148,7 +148,7 @@ func (edgefs *EdgeFSProvider) CheckHealth() (err error) {
 
 	r, err := c.CheckHealth(ctx, &cluster.CheckHealthRequest{})
 	if err != nil {
-		err = fmt.Errorf("CheckHealth: cannot contact local site cluster", err)
+		err = fmt.Errorf("CheckHealth: cannot contact local site cluster: %v", err)
 		log.Error(err.Error)
 		return err
 	}
@@ -169,7 +169,7 @@ func (edgefs *EdgeFSProvider) CreateBucket(clusterName string, tenantName string
 
 	_, err = c.BucketCreate(ctx, &tenant.BucketCreateRequest{})
 	if err != nil {
-		err = fmt.Errorf("BucketCreate:", err)
+		err = fmt.Errorf("BucketCreate: %v", err)
 		log.Error(err.Error)
 		return err
 	}
@@ -188,7 +188,7 @@ func (edgefs *EdgeFSProvider) DeleteBucket(clusterName string, tenantName string
 
 		_, err = c.BucketDelete(ctx, &tenant.BucketDeleteRequest{})
 		if err != nil {
-			err = fmt.Errorf("BucketDelete:", err)
+			err = fmt.Errorf("BucketDelete: %v", err)
 			log.Error(err.Error)
 			return err
 		}
@@ -212,64 +212,73 @@ func (edgefs *EdgeFSProvider) SetBucketQuota(cluster string, tenant string, buck
 	return err
 }
 
-func (edgefs *EdgeFSProvider) GetService(serviceName string) (service EdgefsService, err error) {
-	// TODO: implement
-	return service, err
+func (edgefs *EdgeFSProvider) GetService(serviceName string) (serviceOut EdgefsService, err error) {
+	c := service.NewServiceClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.ServiceList(ctx, &service.ServiceListRequest{
+		Type: service.ProtocolType_NFS,
+		Pattern: serviceName,
+		Count: 1,
+	})
+	if err != nil {
+		err = fmt.Errorf("ServiceList Pattern=%s Count=1: %v", serviceName, err)
+		log.Error(err.Error)
+		return EdgefsService{}, err
+	}
+
+	for _,info := range r.Info {
+		serviceOut.Name = info.Name
+		serviceOut.Status = info.Status
+		serviceOut.ServiceType = info.Type
+		break
+	}
+	return serviceOut, nil
 }
 
 func (edgefs *EdgeFSProvider) ListServices() (services []EdgefsService, err error) {
-	// TODO: implement
-	return services, err
+	c := service.NewServiceClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.ServiceList(ctx, &service.ServiceListRequest{
+		Type: service.ProtocolType_NFS,
+	})
+	if err != nil {
+		err = fmt.Errorf("ServiceList: %v", err)
+		log.Error(err.Error)
+		return nil, err
+	}
+
+	for _,info := range r.Info {
+		var service EdgefsService
+		service.Name = info.Name
+		service.Status = info.Status
+		service.ServiceType = info.Type
+		services = append(services, service)
+	}
+	return services, nil
 }
 
 func (edgefs *EdgeFSProvider) ListNFSVolumes(serviceName string) (nfsVolumes []EdgefsNFSVolume, err error) {
-	// TODO: implement
-	return nfsVolumes, err
-}
+	c := service.NewServiceClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
 
-func (edgefs *EdgeFSProvider) ServeBucket(service string, cluster string, tenant string, bucket string) (err error) {
-	// TODO: implement
-	return nil
-}
-
-func (edgefs *EdgeFSProvider) UnserveBucket(service string, cluster string, tenant string, bucket string) (err error) {
-	// TODO: implement
-	return nil
-}
-
-func (edgefs *EdgeFSProvider) IsBucketExist(cluster string, tenant string, bucket string) bool {
-	// TODO: implement
-	return true
-}
-
-func (edgefs *EdgeFSProvider) ListBuckets(cluster string, tenant string) (buckets []string, err error) {
-	// TODO: implement
-	return buckets, err
-}
-
-func (edgefs *EdgeFSProvider) ListClusters() (clusters []string, err error) {
-	// TODO: implement
-	return clusters, err
-}
-
-func (edgefs *EdgeFSProvider) ListTenants(cluster string) (tenants []string, err error) {
-	// TODO: implement
-	return tenants, err
-}
-
-func getXServiceObjectsFromString(service string, xObjects string) (nfsVolumes []EdgefsNFSVolume, err error) {
-	var objects []string
-	err = json.Unmarshal([]byte(xObjects), &objects)
+	r, err := c.ServiceObjectList(ctx, &service.ServiceObjectListRequest{
+		Pattern: serviceName,
+		Count: 1,
+	})
 	if err != nil {
-		log.Error(err)
-		return nfsVolumes, err
+		err = fmt.Errorf("ServiceObjectList: %v", err)
+		log.Error(err.Error)
+		return nil, err
 	}
 
-	// Service Object string format: <id>,<ten/buc>@<clu/ten/buc>
-	for _, v := range objects {
-		var objectParts = strings.Split(v, ",")
+	for _,info := range r.Info {
+		var objectParts = strings.Split(info.Name, ",")
 		if len(objectParts) == 2 {
-
 			parts := strings.Split(objectParts[1], "@")
 			if len(parts) == 2 {
 				pathParts := strings.Split(parts[1], "/")
@@ -277,8 +286,10 @@ func getXServiceObjectsFromString(service string, xObjects string) (nfsVolumes [
 					share := "/" + parts[0]
 					volume := EdgefsNFSVolume{
 						VolumeID: VolumeID{
-							Service: service, Cluster: pathParts[0],
-							Tenant: pathParts[1], Bucket: pathParts[2],
+							Service: serviceName,
+							Cluster: pathParts[0],
+							Tenant: pathParts[1],
+							Bucket: pathParts[2],
 						},
 						Share: share,
 						Path:  parts[1],
@@ -288,5 +299,133 @@ func getXServiceObjectsFromString(service string, xObjects string) (nfsVolumes [
 			}
 		}
 	}
-	return nfsVolumes, err
+	return nfsVolumes, nil
+}
+
+func (edgefs *EdgeFSProvider) ServeBucket(serviceName string, clusterName string, tenantName string, bucketName string) (err error) {
+	c := service.NewServiceClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	// TODO: configurable namespace and port
+
+	_, err = c.Serve(ctx, &service.ServeRequest{
+		Type: service.ProtocolType_NFS,
+		Service: serviceName,		// Kubernetes EdgeNFS Service
+		Namespace: "edgefs",		// - namespace to search for service
+		Port: defaultEfsProxyPort,	// - efsproxy controller port
+		Cluster: clusterName,
+		Tenant: tenantName,
+		Bucket: bucketName,
+	})
+	if err != nil {
+		err = fmt.Errorf("Serve: %v", err)
+		log.Error(err.Error)
+		return err
+	}
+	return nil
+}
+
+func (edgefs *EdgeFSProvider) UnserveBucket(serviceName string, clusterName string, tenantName string, bucketName string) (err error) {
+	c := service.NewServiceClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	// TODO: configurable namespace and port
+
+	_, err = c.Unserve(ctx, &service.ServeRequest{
+		Type: service.ProtocolType_NFS,
+		Service: serviceName,		// Kubernetes EdgeNFS Service
+		Namespace: "edgefs",		// - namespace to search for service
+		Port: defaultEfsProxyPort,	// - efsproxy controller port
+		Cluster: clusterName,
+		Tenant: tenantName,
+		Bucket: bucketName,
+	})
+	if err != nil {
+		err = fmt.Errorf("Unserve: %v", err)
+		log.Error(err.Error)
+		return err
+	}
+	return nil
+}
+
+func (edgefs *EdgeFSProvider) IsBucketExist(clusterName string, tenantName string, bucketName string) bool {
+	c := tenant.NewBucketClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.BucketList(ctx, &tenant.BucketListRequest{
+		Cluster: clusterName,
+		Tenant: tenantName,
+		Pattern: bucketName,
+		Count: 1,
+	})
+	if err != nil {
+		err = fmt.Errorf("BucketList Pattern=%s Count=1: %v", bucketName, err)
+		log.Error(err.Error)
+		return false
+	}
+
+	return len(r.Info) == 1
+}
+
+func (edgefs *EdgeFSProvider) ListBuckets(clusterName string, tenantName string) (buckets []string, err error) {
+	c := tenant.NewBucketClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.BucketList(ctx, &tenant.BucketListRequest{
+		Cluster: clusterName,
+		Tenant: tenantName,
+	})
+	if err != nil {
+		err = fmt.Errorf("BucketList: %v", err)
+		log.Error(err.Error)
+		return nil, err
+	}
+
+	for _,info := range r.Info {
+		buckets = append(buckets, info.Name)
+	}
+	return buckets, err
+}
+
+func (edgefs *EdgeFSProvider) ListClusters() (clusters []string, err error) {
+	c := cluster.NewClusterClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.ClusterList(ctx, &cluster.ClusterListRequest{})
+	if err != nil {
+		err = fmt.Errorf("ClusterList: %v", err)
+		log.Error(err.Error)
+		return nil, err
+	}
+
+	for _,info := range r.Info {
+		clusters = append(clusters, info.Name)
+	}
+
+	return clusters, nil
+}
+
+func (edgefs *EdgeFSProvider) ListTenants(clusterName string) (tenants []string, err error) {
+	c := tenant.NewTenantClient(edgefs.conn)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	r, err := c.TenantList(ctx, &tenant.TenantListRequest{
+		Cluster: clusterName,
+	})
+	if err != nil {
+		err = fmt.Errorf("TenantList: %v", err)
+		log.Error(err.Error)
+		return nil, err
+	}
+
+	for _,info := range r.Info {
+		tenants = append(tenants, info.Name)
+	}
+	return tenants, err
 }
