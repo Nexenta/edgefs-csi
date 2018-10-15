@@ -10,6 +10,9 @@ all: nfs
 
 .get:
 	GOPATH=`pwd` go get || true
+	# to workaround log_dir panic ... ugly
+	rm -rf src/k8s.io/kubernetes/vendor/github.com/golang
+	GOPATH=`pwd` go get || true
 	touch $@
 
 nfs: .get
@@ -21,6 +24,9 @@ build-container: nfs
 push-container: build-container
 	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+
+test:
+	GOPATH=`pwd` go test -v ./csi
 
 clean:
 	-rm -rf $(PLUGIN_NAME) src .get

@@ -56,8 +56,8 @@ func IsConfigFileExists() bool {
 func ReadParseConfig() (config EdgefsClusterConfig, err error) {
 
 	if !IsConfigFileExists() {
-		log.Infof("Config file %s not found", edgefsConfigFile)
-		return config, fmt.Errorf("Config file %s not found", edgefsConfigFile)
+		err = fmt.Errorf("Config file %s not found", edgefsConfigFile)
+		return config, err
 	}
 
 	content, err := ioutil.ReadFile(edgefsConfigFile)

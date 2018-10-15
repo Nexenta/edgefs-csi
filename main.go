@@ -45,7 +45,7 @@ func main() {
 	flag.CommandLine.Parse([]string{})
 
 	cmd := &cobra.Command{
-		Use:   "edgefs-csi-plugin",
+		Use:   "edgefs-csi",
 		Short: "CSI based EdgeFS NFS driver",
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
