@@ -26,7 +26,7 @@ push-container: build-container
 	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 test:
-	GOPATH=`pwd` go test -v ./csi
+	GOPATH=`pwd` go test -count=1 -v ./csi
 
 clean:
 	-rm -rf $(PLUGIN_NAME) src .get

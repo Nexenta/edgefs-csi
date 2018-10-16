@@ -55,7 +55,6 @@ type EdgefsNFSVolume struct {
 type EdgefsService struct {
 	Name        string
 	ServiceType string
-	Status      string
 	Network     []string
 }
 
@@ -115,7 +114,7 @@ func (c *loginCreds) GetRequestMetadata(context.Context, ...string) (map[string]
 }
 
 func (c *loginCreds) RequireTransportSecurity() bool {
-	return true
+	return false
 }
 
 func InitEdgeFSProvider(proxyip string, port int16, username string, password string) IEdgeFSProvider {
@@ -230,8 +229,8 @@ func (edgefs *EdgeFSProvider) GetService(serviceName string) (serviceOut EdgefsS
 
 	for _,info := range r.Info {
 		serviceOut.Name = info.Name
-		serviceOut.Status = info.Status
-		serviceOut.ServiceType = info.Type
+		serviceOut.ServiceType = info.Type.String()
+		serviceOut.Network = nil // will be filled in by detector
 		break
 	}
 	return serviceOut, nil
@@ -254,8 +253,8 @@ func (edgefs *EdgeFSProvider) ListServices() (services []EdgefsService, err erro
 	for _,info := range r.Info {
 		var service EdgefsService
 		service.Name = info.Name
-		service.Status = info.Status
-		service.ServiceType = info.Type
+		service.ServiceType = info.Type.String()
+		service.Network = nil // will be filled in by detector
 		services = append(services, service)
 	}
 	return services, nil

@@ -40,10 +40,6 @@ import (
 
 const (
 	edgefsConfigFile    = "/config/cluster-config.json"
-	K8sEdgefsNamespace  = "edgefs"
-	K8sEdgefsMgmtPrefix = "edgefs-mgmt"
-	K8sEdgefsNfsPrefix  = "edgefs-svc-nfs-"
-	k8sClientInCluster = true
 )
 
 func IsConfigFileExists() bool {
@@ -115,7 +111,7 @@ func GetEdgefsCluster() (cluster ClusterData, err error) {
 func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
-	if k8sClientInCluster == true {
+	if config.K8sClientInCluster == true {
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
@@ -137,7 +133,7 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 		return false, err
 	}
 
-	svcs, err := clientset.CoreV1().Services(K8sEdgefsNamespace).List(metav1.ListOptions{})
+	svcs, err := clientset.CoreV1().Services(config.K8sEdgefsNamespace).List(metav1.ListOptions{})
 	//log.Infof("SVCS: %+v\n", svcs)
 	if err != nil {
 		log.Errorf("Error: %v\n", err)
@@ -150,7 +146,7 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 		serviceName := svc.GetName()
 		serviceClusterIP := svc.Spec.ClusterIP
 
-		if strings.HasPrefix(serviceName, K8sEdgefsMgmtPrefix) {
+		if strings.HasPrefix(serviceName, config.K8sEdgefsMgmtPrefix) {
 			config.EdgefsProxyAddr = serviceClusterIP
 			return true, err
 		}
@@ -158,7 +154,8 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 	return false, err
 }
 
-func GetEdgefsK8sClusterServices() (services []EdgefsService, err error) {
+func GetEdgefsK8sClusterServices(k8sClientInCluster bool, k8sEdgefsNamespace string,
+    k8sEdgefsNfsPrefix string) (services []EdgefsService, err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
 	if k8sClientInCluster == true {
@@ -183,7 +180,7 @@ func GetEdgefsK8sClusterServices() (services []EdgefsService, err error) {
 		return services, err
 	}
 
-	svcs, err := clientset.CoreV1().Services(K8sEdgefsNamespace).List(metav1.ListOptions{})
+	svcs, err := clientset.CoreV1().Services(k8sEdgefsNamespace).List(metav1.ListOptions{})
 	//log.Infof("SVCS: %+v\n", svcs)
 	if err != nil {
 		log.Errorf("Error: %v\n", err)
@@ -196,12 +193,12 @@ func GetEdgefsK8sClusterServices() (services []EdgefsService, err error) {
 		serviceName := svc.GetName()
 		serviceClusterIP := svc.Spec.ClusterIP
 
-		if strings.HasPrefix(serviceName, K8sEdgefsNfsPrefix) {
+		if strings.HasPrefix(serviceName, k8sEdgefsNfsPrefix) {
 			//log.Infof("Adding service %s\n", serviceName)
-			nfsSvcName := strings.TrimPrefix(serviceName, K8sEdgefsNfsPrefix)
+			nfsSvcName := strings.TrimPrefix(serviceName, k8sEdgefsNfsPrefix)
 			serviceNetwork := []string{serviceClusterIP}
 
-			newService := EdgefsService{Name: nfsSvcName, ServiceType: "nfs", Status: "enabled", Network: serviceNetwork}
+			newService := EdgefsService{Name: nfsSvcName, ServiceType: "NFS", Network: serviceNetwork}
 			services = append(services, newService)
 		}
 	}

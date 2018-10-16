@@ -24,7 +24,6 @@
 package csi
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -34,10 +33,13 @@ import (
 
 const (
 	defaultChunkSize       int    = 1048576
-	xorKey                 string = "#o$3dfMJd@#4_;sdf789G%$789Slpo(Zv~"
-	defaultUserName        string = "admin"
-	defaultPassword        string = "TQpcVgoSLA=="
+	defaultUsername        string = "admin"
+	defaultPassword        string = "admin"
 	defaultNFSMountOptions string = "vers=3,tcp"
+	defaultK8sEdgefsNamespace string = "edgefs"
+	defaultK8sEdgefsMgmtPrefix string = "edgefs-mgmt"
+	defaultK8sEdgefsNfsPrefix string = "edgefs-svc-nfs"
+	defaultK8sClientInCluster bool = true
 )
 
 /*IEdgeFS interface to provide base methods */
@@ -60,8 +62,12 @@ type EdgeFS struct {
 
 type EdgefsClusterConfig struct {
 	Name                  string
-	EdgefsProxyAddr             string
-	EdgefsProxyPort             string
+	EdgefsProxyAddr       string
+	EdgefsProxyPort       string
+	K8sEdgefsNamespace    string
+	K8sEdgefsMgmtPrefix   string
+	K8sEdgefsNfsPrefix    string
+	K8sClientInCluster    bool
 	Username              string
 	Password              string
 	Cluster               string
@@ -95,16 +101,6 @@ func (config *EdgefsClusterConfig) GetServiceFilterMap() (filterMap map[string]b
 	return filterMap
 }
 
-/* Method to XOR input password string */
-func EncryptDecrypt(input string) (output string) {
-	key := xorKey
-	for i := 0; i < len(input); i++ {
-		output += string(input[i] ^ key[i%len(key)])
-	}
-
-	return output
-}
-
 /*InitEdgeFS reads config and discovers Edgefs clusters*/
 func InitEdgeFS(invoker string) (edgefs IEdgeFS, err error) {
 	var config EdgefsClusterConfig
@@ -120,16 +116,35 @@ func InitEdgeFS(invoker string) (edgefs IEdgeFS, err error) {
 
 	/* Apply default values here */
 	if len(config.Username) == 0 {
-		config.Username = defaultUserName
+		config.Username = defaultUsername
 	}
 
 	if len(config.Password) == 0 {
-		config.Username = defaultPassword
+		config.Password = defaultPassword
 	}
 
 	//set default NfsMountOptions values
 	if len(config.NfsMountOptions) == 0 {
 		config.NfsMountOptions = defaultNFSMountOptions
+	}
+
+	//
+	// Kubernetes config
+	//
+	if config.K8sEdgefsNamespace == "" {
+		config.K8sEdgefsNamespace = defaultK8sEdgefsNamespace
+	}
+
+	if config.K8sEdgefsMgmtPrefix == "" {
+		config.K8sEdgefsMgmtPrefix = defaultK8sEdgefsMgmtPrefix
+	}
+
+	if config.K8sEdgefsNfsPrefix == "" {
+		config.K8sEdgefsNfsPrefix = defaultK8sEdgefsNfsPrefix
+	}
+
+	if config.K8sEdgefsNfsPrefix == "" {
+		config.K8sClientInCluster = defaultK8sClientInCluster
 	}
 
 	// No address information for k8s Edgefs cluster
@@ -144,27 +159,16 @@ func InitEdgeFS(invoker string) (edgefs IEdgeFS, err error) {
 	}
 
 	//default port
-	clusterPort := int16(8080)
+	clusterPort := int16(6789)
 	i, err := strconv.ParseInt(config.EdgefsProxyPort, 10, 16)
 	if err == nil {
 		clusterPort = int16(i)
 	}
 
-	/* Decode from BASE64 nexentaEdge REST password */
-	passwordData, err := base64.StdEncoding.DecodeString(config.Password)
-	if err != nil {
-		err = fmt.Errorf("failed to decode password. error %+v", err)
-		log.Error(err)
-		return nil, err
-	}
-
-	// XOR password data to plain REST password */
-	configPassword := EncryptDecrypt(string(passwordData[:]))
-
-	provider = InitEdgeFSProvider(config.EdgefsProxyAddr, clusterPort, config.Username, configPassword)
+	provider = InitEdgeFSProvider(config.EdgefsProxyAddr, clusterPort, config.Username, config.Password)
 	err = provider.CheckHealth()
 	if err != nil {
-		log.Error("InitEdgeFS failed during CheckHealth : %+v", err)
+		log.Error("InitEdgeFS failed during CheckHealth : %v", err)
 		return nil, err
 	}
 	log.Debugf("Check healtz for %s is OK!", config.EdgefsProxyAddr)
@@ -188,17 +192,13 @@ func (edgefs *EdgeFS) CheckNfsServiceExists(serviceName string) error {
 		return fmt.Errorf("No EdgeFS service %s has been found", serviceName)
 	}
 
-	if edgefsService.ServiceType != "nfs" {
+	if edgefsService.ServiceType != "NFS" {
 		return fmt.Errorf("Service %s is not nfs type service", edgefsService.Name)
 	}
 
 	// in case of In-Cluster edgefs configuration, there is no network configured
 	if edgefs.isStandAloneCluster && len(edgefsService.Network) < 1 {
 		return fmt.Errorf("Service %s isn't configured, no client network assigned", edgefsService.Name)
-	}
-
-	if edgefsService.Status != "enabled" {
-		return fmt.Errorf("Service %s not enabled, enable service to make it available", edgefsService.Name)
 	}
 
 	return nil
@@ -373,7 +373,8 @@ func (edgefs *EdgeFS) DeleteVolume(volumeID string) (err error) {
 }
 
 func (edgefs *EdgeFS) GetK8sEdgefsService(serviceName string) (resultService EdgefsService, err error) {
-	services, err := GetEdgefsK8sClusterServices()
+	services, err := GetEdgefsK8sClusterServices(edgefs.clusterConfig.K8sClientInCluster,
+	    edgefs.clusterConfig.K8sEdgefsNamespace, edgefs.clusterConfig.K8sEdgefsNfsPrefix)
 	if err != nil {
 		return resultService, err
 	}
@@ -398,12 +399,12 @@ func (edgefs *EdgeFS) ListServices(serviceName ...string) (resultServices []Edge
 			services, err = edgefs.provider.ListServices()
 		}
 	} else {
-		//log.Infof("List k8s services for NExentaEdge")
 		if len(serviceName) > 0 {
 			service, err = edgefs.GetK8sEdgefsService(serviceName[0])
 			services = append(services, service)
 		} else {
-			services, err = GetEdgefsK8sClusterServices()
+			services, err = GetEdgefsK8sClusterServices(edgefs.clusterConfig.K8sClientInCluster,
+			    edgefs.clusterConfig.K8sEdgefsNamespace, edgefs.clusterConfig.K8sEdgefsNfsPrefix)
 		}
 		//log.Infof("Service list %+v", services)
 	}
@@ -422,11 +423,12 @@ func (edgefs *EdgeFS) ListServices(serviceName ...string) (resultServices []Edge
 			}
 		}
 
-		if service.ServiceType == "nfs" && service.Status == "enabled" && len(service.Network) > 0 {
+		if (service.ServiceType == "NFS" && edgefs.isStandAloneCluster) ||
+		   (service.ServiceType == "NFS" && len(service.Network) > 0) {
 			resultServices = append(resultServices, service)
 		}
 	}
-	return resultServices, err
+	return resultServices, nil
 }
 
 /*ListVolumes list all available volumes */

@@ -35,7 +35,7 @@ func DeleteVolume(e csi.IEdgeFS, volumeID string) {
 
 
 func TestVolumes(t *testing.T) {
-	e, err := csi.InitEdgeFS("test")
+	e, err := csi.InitEdgeFS("edgefs_test")
 	if err != nil {
                 fmt.Printf("Failed to InitEdgeFS: %s\n", err)
                 return
@@ -43,14 +43,9 @@ func TestVolumes(t *testing.T) {
 
 	fmt.Printf("e  : %+v\n", e)
 
-	ListVolumes(e)
-//	cluData, err := e.GetClusterData()
-//	if err != nil {
-//                fmt.Printf("Failed to ListServices: %s", err)
-//                return
-//        }
+	volumeID := "cltest/test/bk1"
 
-	volumeID := "ten1/buk1"
+	ListVolumes(e)
 	CreateVolume(e, volumeID)
 	ListVolumes(e)
 	DeleteVolume(e, volumeID)
