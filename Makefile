@@ -10,7 +10,10 @@ all: nfs
 
 .get:
 	GOPATH=`pwd` go get || true
-	# to workaround log_dir panic ... ugly
+	# to workaround log_dir, etc panic ... ugly
+	rm -rf src/github.com/kubernetes-csi/drivers/vendor/github.com/container-storage-interface
+	rm -rf src/github.com/kubernetes-csi/drivers/vendor/google.golang.org
+	rm -rf src/github.com/kubernetes-csi/drivers/vendor/github.com/golang
 	rm -rf src/k8s.io/kubernetes/vendor/github.com/golang
 	GOPATH=`pwd` go get || true
 	touch $@
