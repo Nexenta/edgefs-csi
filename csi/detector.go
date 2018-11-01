@@ -111,7 +111,7 @@ func GetEdgefsCluster() (cluster ClusterData, err error) {
 func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
-	if config.K8sClientInCluster == true {
+	if config.K8sClientInCluster {
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
@@ -134,14 +134,14 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 	}
 
 	svcs, err := clientset.CoreV1().Services(config.K8sEdgefsNamespace).List(metav1.ListOptions{})
-	//log.Infof("SVCS: %+v\n", svcs)
+	log.Debugf("svcs list: %+v\n", svcs)
 	if err != nil {
 		log.Errorf("Error: %v\n", err)
 		return false, err
 	}
 
 	for _, svc := range svcs.Items {
-		//log.Infof("Item: %+v\n", svc)
+		log.Debugf("svcs item: %+v\n", svc)
 
 		serviceName := svc.GetName()
 		serviceClusterIP := svc.Spec.ClusterIP

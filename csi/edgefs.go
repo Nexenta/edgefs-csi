@@ -143,9 +143,7 @@ func InitEdgeFS(invoker string) (edgefs IEdgeFS, err error) {
 		config.K8sEdgefsNfsPrefix = defaultK8sEdgefsNfsPrefix
 	}
 
-	if config.K8sEdgefsNfsPrefix == "" {
-		config.K8sClientInCluster = defaultK8sClientInCluster
-	}
+	config.K8sClientInCluster = defaultK8sClientInCluster
 
 	// No address information for k8s Edgefs cluster
 	if config.EdgefsProxyAddr == "" {

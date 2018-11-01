@@ -19,7 +19,10 @@ all: nfs
 	touch $@
 
 nfs: .get
-	GOPATH=`pwd` go build -o $(PLUGIN_NAME) main.go
+	# dynamic builds faster, but not good for Dockerfile
+	#GOPATH=`pwd` go build -o $(PLUGIN_NAME) main.go
+	# static build
+	GOPATH=`pwd` CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(PLUGIN_NAME) main.go
 
 build-container: nfs 
 	docker build -f $(DOCKER_FILE) -t $(IMAGE_NAME) .

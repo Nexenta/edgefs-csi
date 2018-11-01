@@ -5,5 +5,6 @@ RUN mkdir -p /etc/
 RUN mkdir -p /config/
 
 COPY ./edgefs-csi /
+COPY ./csc /
 
 ENTRYPOINT ["/edgefs-csi"]
