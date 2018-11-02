@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	defaultTimeout   time.Duration = 10 * time.Second
+	defaultTimeout   time.Duration = 20 * time.Second
 )
 
 type EdgefsNFSVolume struct {
@@ -53,9 +53,11 @@ type EdgefsNFSVolume struct {
 }
 
 type EdgefsService struct {
-	Name        string
-	ServiceType string
-	Network     []string
+	Name         string
+	K8SSvcName   string
+	K8SNamespace string
+	ServiceType  string
+	Network      []string
 }
 
 func (edgefsService *EdgefsService) FindNFSVolumeByVolumeID(volumeID string, nfsVolumes []EdgefsNFSVolume) (resultNfsVolume EdgefsNFSVolume, err error) {
@@ -85,8 +87,8 @@ type IEdgeFSProvider interface {
 	IsBucketExist(cluster string, tenant string, bucket string) bool
 	CreateBucket(cluster string, tenant string, bucket string, size int, options map[string]string) error
 	DeleteBucket(cluster string, tenant string, bucket string, force bool) error
-	ServeBucket(service string, cluster string, tenant string, bucket string) (err error)
-	UnserveBucket(service string, cluster string, tenant string, bucket string) (err error)
+	ServeBucket(service, k8sservice, k8snamespace string, cluster string, tenant string, bucket string) (err error)
+	UnserveBucket(service, k8sservice, k8snamespace string, cluster string, tenant string, bucket string) (err error)
 	SetBucketQuota(cluster string, tenant string, bucket string, quota string) (err error)
 	SetServiceAclConfiguration(service string, tenant string, bucket string, value string) error
 	UnsetServiceAclConfiguration(service string, tenant string, bucket string) error
@@ -166,7 +168,7 @@ func (edgefs *EdgeFSProvider) CreateBucket(clusterName string, tenantName string
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	_, err = c.BucketCreate(ctx, &tenant.BucketCreateRequest{})
+	_, err = c.BucketCreate(ctx, &tenant.BucketCreateRequest{Cluster: clusterName, Tenant: tenantName, Bucket: bucketName})
 	if err != nil {
 		err = fmt.Errorf("BucketCreate: %v", err)
 		log.Error(err.Error)
@@ -185,7 +187,7 @@ func (edgefs *EdgeFSProvider) DeleteBucket(clusterName string, tenantName string
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		_, err = c.BucketDelete(ctx, &tenant.BucketDeleteRequest{})
+		_, err = c.BucketDelete(ctx, &tenant.BucketDeleteRequest{Cluster: clusterName, Tenant: tenantName, Bucket: bucketName})
 		if err != nil {
 			err = fmt.Errorf("BucketDelete: %v", err)
 			log.Error(err.Error)
@@ -198,6 +200,11 @@ func (edgefs *EdgeFSProvider) DeleteBucket(clusterName string, tenantName string
 
 func (edgefs *EdgeFSProvider) SetServiceAclConfiguration(service string, tenant string, bucket string, value string) error {
 	// TODO: implement
+	//c := tenant.NewBucketClient(edgefs.conn)
+	//ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	//defer cancel()
+
+
 	return nil
 }
 
@@ -266,7 +273,7 @@ func (edgefs *EdgeFSProvider) ListNFSVolumes(serviceName string) (nfsVolumes []E
 	defer cancel()
 
 	r, err := c.ServiceObjectList(ctx, &service.ServiceObjectListRequest{
-		Pattern: serviceName,
+		Service: serviceName,
 		Count: 1,
 	})
 	if err != nil {
@@ -301,22 +308,25 @@ func (edgefs *EdgeFSProvider) ListNFSVolumes(serviceName string) (nfsVolumes []E
 	return nfsVolumes, nil
 }
 
-func (edgefs *EdgeFSProvider) ServeBucket(serviceName string, clusterName string, tenantName string, bucketName string) (err error) {
+func (edgefs *EdgeFSProvider) ServeBucket(serviceName, k8sServiceName, k8sNamespace string,
+		clusterName string, tenantName string, bucketName string) (err error) {
 	c := service.NewServiceClient(edgefs.conn)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	// TODO: configurable namespace and port
-
-	_, err = c.Serve(ctx, &service.ServeRequest{
+	req := &service.ServeRequest{
 		Type: service.ProtocolType_NFS,
-		Service: serviceName,		// Kubernetes EdgeNFS Service
-		Namespace: "edgefs",		// - namespace to search for service
-		Port: defaultEfsProxyPort,	// - efsproxy controller port
+		Service: serviceName,
+		K8SService: k8sServiceName,	// Kubernetes EdgeNFS Service
+		K8SNamespace: k8sNamespace,	// - namespace to search for service
 		Cluster: clusterName,
 		Tenant: tenantName,
 		Bucket: bucketName,
-	})
+	}
+
+	log.Printf("ServeBucket: %+v", req)
+
+	_, err = c.Serve(ctx, req)
 	if err != nil {
 		err = fmt.Errorf("Serve: %v", err)
 		log.Error(err.Error)
@@ -325,22 +335,24 @@ func (edgefs *EdgeFSProvider) ServeBucket(serviceName string, clusterName string
 	return nil
 }
 
-func (edgefs *EdgeFSProvider) UnserveBucket(serviceName string, clusterName string, tenantName string, bucketName string) (err error) {
+func (edgefs *EdgeFSProvider) UnserveBucket(serviceName, k8sServiceName, k8sNamespace string,
+		clusterName string, tenantName string, bucketName string) (err error) {
 	c := service.NewServiceClient(edgefs.conn)
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	// TODO: configurable namespace and port
-
-	_, err = c.Unserve(ctx, &service.ServeRequest{
+	req := &service.ServeRequest{
 		Type: service.ProtocolType_NFS,
-		Service: serviceName,		// Kubernetes EdgeNFS Service
-		Namespace: "edgefs",		// - namespace to search for service
-		Port: defaultEfsProxyPort,	// - efsproxy controller port
+		Service: serviceName,
+		K8SService: k8sServiceName,	// Kubernetes EdgeNFS Service
+		K8SNamespace: k8sNamespace,	// - namespace to search for service
 		Cluster: clusterName,
 		Tenant: tenantName,
 		Bucket: bucketName,
-	})
+	}
+	log.Printf("UnserveBucket: %+v", req)
+
+	_, err = c.Unserve(ctx, req)
 	if err != nil {
 		err = fmt.Errorf("Unserve: %v", err)
 		log.Error(err.Error)

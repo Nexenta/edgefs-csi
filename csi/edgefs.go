@@ -307,7 +307,8 @@ func (edgefs *EdgeFS) CreateVolume(name string, size int, options map[string]str
 		}
 	}
 
-	err = edgefs.provider.ServeBucket(volID.Service, volID.Cluster, volID.Tenant, volID.Bucket)
+	err = edgefs.provider.ServeBucket(volID.Service, serviceData.Service.K8SSvcName, serviceData.Service.K8SNamespace,
+		volID.Cluster, volID.Tenant, volID.Bucket)
 	if err != nil {
 		log.Error(err)
 		return "", err
@@ -361,7 +362,8 @@ func (edgefs *EdgeFS) DeleteVolume(volumeID string) (err error) {
 	// before unserve bucket we need to unset ACL property
 	edgefs.provider.SetServiceAclConfiguration(nfsVolume.VolumeID.Service, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket, "")
 
-	edgefs.provider.UnserveBucket(nfsVolume.VolumeID.Service, nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket)
+	edgefs.provider.UnserveBucket(nfsVolume.VolumeID.Service, serviceData.Service.K8SSvcName, serviceData.Service.K8SNamespace,
+		nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket)
 
 	if edgefs.provider.IsBucketExist(nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket) {
 		edgefs.provider.DeleteBucket(nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket, edgefs.clusterConfig.ForceBucketDeletion)
@@ -372,7 +374,7 @@ func (edgefs *EdgeFS) DeleteVolume(volumeID string) (err error) {
 
 func (edgefs *EdgeFS) GetK8sEdgefsService(serviceName string) (resultService EdgefsService, err error) {
 	services, err := GetEdgefsK8sClusterServices(edgefs.clusterConfig.K8sClientInCluster,
-	    edgefs.clusterConfig.K8sEdgefsNamespace, edgefs.clusterConfig.K8sEdgefsNfsPrefix)
+	    edgefs.clusterConfig.K8sEdgefsNamespace)
 	if err != nil {
 		return resultService, err
 	}
@@ -402,7 +404,7 @@ func (edgefs *EdgeFS) ListServices(serviceName ...string) (resultServices []Edge
 			services = append(services, service)
 		} else {
 			services, err = GetEdgefsK8sClusterServices(edgefs.clusterConfig.K8sClientInCluster,
-			    edgefs.clusterConfig.K8sEdgefsNamespace, edgefs.clusterConfig.K8sEdgefsNfsPrefix)
+			    edgefs.clusterConfig.K8sEdgefsNamespace)
 		}
 		//log.Infof("Service list %+v", services)
 	}

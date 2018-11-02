@@ -154,8 +154,7 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 	return false, err
 }
 
-func GetEdgefsK8sClusterServices(k8sClientInCluster bool, k8sEdgefsNamespace string,
-    k8sEdgefsNfsPrefix string) (services []EdgefsService, err error) {
+func GetEdgefsK8sClusterServices(k8sClientInCluster bool, k8sEdgefsNamespace string) (services []EdgefsService, err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
 	if k8sClientInCluster == true {
@@ -188,20 +187,30 @@ func GetEdgefsK8sClusterServices(k8sClientInCluster bool, k8sEdgefsNamespace str
 	}
 
 	for _, svc := range svcs.Items {
-		//log.Infof("Item: %+v\n", svc)
+		log.Infof("Item: %+v\n", svc)
 
-		serviceName := svc.GetName()
+		k8sServiceName := svc.GetName()
+		k8sNamespace := svc.GetNamespace()
 		serviceClusterIP := svc.Spec.ClusterIP
 
-		if strings.HasPrefix(serviceName, k8sEdgefsNfsPrefix) {
-			//log.Infof("Adding service %s\n", serviceName)
-			nfsSvcName := strings.TrimPrefix(serviceName, k8sEdgefsNfsPrefix)
-			serviceNetwork := []string{serviceClusterIP}
-
-			newService := EdgefsService{Name: nfsSvcName, ServiceType: "NFS", Network: serviceNetwork}
-			services = append(services, newService)
+		if  typeValue, ok := svc.Labels["edgefs_svctype"]; ok {
+			if typeValue != "nfs" {
+				continue
+			}
+			if efsServiceName, ok := svc.Labels["edgefs_svcname"]; ok {
+				log.Infof("Adding service %s\n", efsServiceName)
+				serviceNetwork := []string{serviceClusterIP}
+				newService := EdgefsService{
+					Name: efsServiceName,
+					K8SSvcName: k8sServiceName,
+					K8SNamespace: k8sNamespace,
+					ServiceType: "NFS",
+					Network: serviceNetwork,
+				}
+				services = append(services, newService)
+			}
 		}
 	}
-	//log.Infof("K8S Edgefs services : %+v\n", services)
+	log.Infof("K8S Edgefs services : %+v\n", services)
 	return services, err
 }
