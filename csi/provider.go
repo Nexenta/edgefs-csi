@@ -274,15 +274,15 @@ func (edgefs *EdgeFSProvider) ListNFSVolumes(serviceName string) (nfsVolumes []E
 
 	r, err := c.ServiceObjectList(ctx, &service.ServiceObjectListRequest{
 		Service: serviceName,
-		Count: 1,
 	})
 	if err != nil {
 		err = fmt.Errorf("ServiceObjectList: %v", err)
 		log.Error(err.Error)
 		return nil, err
 	}
-
+	log.Infof("Service %s objects:", serviceName)
 	for _,info := range r.Info {
+		log.Infof("Service objectInfo: %+v", info)
 		var objectParts = strings.Split(info.Name, ",")
 		if len(objectParts) == 2 {
 			parts := strings.Split(objectParts[1], "@")

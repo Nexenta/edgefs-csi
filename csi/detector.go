@@ -134,7 +134,7 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 	}
 
 	svcs, err := clientset.CoreV1().Services(config.K8sEdgefsNamespace).List(metav1.ListOptions{})
-	log.Debugf("svcs list: %+v\n", svcs)
+	//log.Debugf("svcs list: %+v\n", svcs)
 	if err != nil {
 		log.Errorf("Error: %v\n", err)
 		return false, err
@@ -187,7 +187,7 @@ func GetEdgefsK8sClusterServices(k8sClientInCluster bool, k8sEdgefsNamespace str
 	}
 
 	for _, svc := range svcs.Items {
-		log.Infof("Item: %+v\n", svc)
+		//log.Infof("Item: %+v\n", svc)
 
 		k8sServiceName := svc.GetName()
 		k8sNamespace := svc.GetNamespace()
