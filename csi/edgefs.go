@@ -362,8 +362,12 @@ func (edgefs *EdgeFS) DeleteVolume(volumeID string) (err error) {
 	// before unserve bucket we need to unset ACL property
 	edgefs.provider.SetServiceAclConfiguration(nfsVolume.VolumeID.Service, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket, "")
 
-	edgefs.provider.UnserveBucket(nfsVolume.VolumeID.Service, serviceData.Service.K8SSvcName, serviceData.Service.K8SNamespace,
+	err = edgefs.provider.UnserveBucket(nfsVolume.VolumeID.Service, serviceData.Service.K8SSvcName, serviceData.Service.K8SNamespace,
 		nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket)
+
+	if err != nil {
+		log.Infof("EdgeFS::UnserveBucket failed with error %s", err)
+	}
 
 	if edgefs.provider.IsBucketExist(nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket) {
 		edgefs.provider.DeleteBucket(nfsVolume.VolumeID.Cluster, nfsVolume.VolumeID.Tenant, nfsVolume.VolumeID.Bucket, edgefs.clusterConfig.ForceBucketDeletion)
