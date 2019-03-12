@@ -27,6 +27,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"io/ioutil"
+
+	nested "github.com/antonfisher/nested-logrus-formatter"
+	logrus "github.com/sirupsen/logrus"
 
 	"./csi"
 	"github.com/spf13/cobra"
@@ -37,8 +41,11 @@ func init() {
 }
 
 var (
+	driverType  string
+	role        string
 	endpoint    string
 	nodeID      string
+	verbose	    string
 )
 
 func main() {
@@ -54,11 +61,20 @@ func main() {
 
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
+	cmd.PersistentFlags().StringVar(&driverType, "driverType", "", "EdgeFS CSI driver type [nfs|iscsi]")
+        cmd.MarkPersistentFlagRequired("driverType")
+
+	cmd.PersistentFlags().StringVar(&role, "role", "", "EdgeFS CSI driver server type [controller|node]")
+	cmd.MarkPersistentFlagRequired("role")
+
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
 	cmd.MarkPersistentFlagRequired("nodeid")
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
 	cmd.MarkPersistentFlagRequired("endpoint")
+
+	cmd.PersistentFlags().StringVar(&verbose, "verbose", "", "CSI driver log level")
+        cmd.MarkPersistentFlagRequired("verbose")
 
 	cmd.ParseFlags(os.Args[1:])
 	if err := cmd.Execute(); err != nil {
@@ -70,6 +86,75 @@ func main() {
 }
 
 func handle() {
-	driver := csi.NewDriver(nodeID, endpoint)
-	driver.Run()
+
+        // init logger
+        l := logrus.New().WithFields(logrus.Fields{
+                "nodeID": nodeID,
+                "cmp":    "Main",
+        })
+
+        // logger formatter
+        l.Logger.SetFormatter(&nested.Formatter{
+                HideKeys:    true,
+                FieldsOrder: []string{"nodeID", "cmp", "func", "req", "reqID", "job"},
+        })
+
+	//setup logger verbose level
+	loggerLevel, err := logrus.ParseLevel(verbose)
+	if err != nil {
+                l.Info("Logger level unknown. Set default to Info. %s", err)
+		l.Logger.SetLevel(logrus.InfoLevel)
+        } else {
+		l.Logger.SetLevel(loggerLevel)
+	}
+
+	l.Info("Edgefs CSI driver passed CLI options:")
+	l.Infof("- Role:             '%s'", role)
+	l.Infof("- DriverType:       '%s'", driverType)
+	l.Infof("- Node ID:          '%s'", nodeID)
+	l.Infof("- CSI endpoint:     '%s'", endpoint)
+	l.Infof("- Log verbose:      '%s'", verbose)
+
+	validatedRole, err := csi.ParseRole(role)
+	if err != nil {
+		l.Warn(err)
+	}
+
+	validatedType, err := csi.ParseDriverType(driverType)
+	if err != nil {
+		l.Warn(err)
+	}
+
+	//new driver parameters
+	driverParameters := csi.Args{
+		Role:       validatedRole,
+		DriverType: validatedType,
+		NodeID: nodeID,
+		Endpoint: endpoint,
+		Logger: l,
+	}
+
+	l.Infof("New driver args: %+v", driverParameters)
+
+	driver, err := csi.NewDriver(driverParameters)
+	if err != nil {
+		writeTerminationMessage(err, l)
+		l.Fatal(err)
+	}
+
+	err = driver.Run()
+	if err != nil {
+		writeTerminationMessage(err, l)
+		l.Fatal(err)
+	}
 }
+
+// Kubernetes retrieves termination messages from the termination message file of a Container,
+// which as a default value of /dev/termination-log
+func writeTerminationMessage(err error, l *logrus.Entry) {
+	writeErr := ioutil.WriteFile("/tmp/termination-log", []byte(fmt.Sprintf("\n%s\n", err)), os.ModePerm)
+	if writeErr != nil {
+		l.Warnf("Failed to write termination message: %s", writeErr)
+	}
+}
+

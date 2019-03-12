@@ -1,7 +1,7 @@
 PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
-REGISTRY=10.3.30.75:5000
+REGISTRY=edgefs/edgefs-csi
 IMAGE_TAG=latest
 
 .PHONY: all nfs 
@@ -32,7 +32,7 @@ push-container: build-container
 	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 test:
-	GOPATH=`pwd` go test -count=1 -v ./csi
+	GOPATH=`pwd` go test -count=1 -v ./csi -run TestAttachISCSIVolume #$TestAttachISCSIVolume #TestGetISCSIDevices
 
 clean:
 	-rm -rf $(PLUGIN_NAME) src .get
