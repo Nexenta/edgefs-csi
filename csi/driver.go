@@ -24,71 +24,185 @@
 package csi
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/kubernetes-csi/drivers/pkg/csi-common"
-	log "github.com/sirupsen/logrus"
-)
+	iscsi "./drivers/iscsi"
+	nfs "./drivers/nfs"
+	"context"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 
-type driver struct {
-	csiDriver *csicommon.CSIDriver
-	endpoint  string
-
-	ids *csicommon.DefaultIdentityServer
-	cs  *controllerServer
-	ns  *nodeServer
-
-	cap   []*csi.VolumeCapability_AccessMode
-	cscap []*csi.ControllerServiceCapability
-}
-
-const (
-	DriverName = "edgefs-csi-plugin"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	logrus "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 var (
-	version = "0.3.0"
+	version = "1.0.0"
 )
 
-/*GetCSIDriver returns pointer to driver */
-func GetCSIDriver() *driver {
-	return &driver{}
+const (
+	EdgefsNfsDriverName   = "io.edgefs.csi.nfs"
+	EdgefsIscsiDriverName = "io.edgefs.csi.iscsi"
+)
+
+// Version - driver version, to set version set flags:
+// go build -ldflags "-X github.com/Nexenta/edgefs/src/csi/edgefs-csi/csi.Version=0.0.1"
+var Version string
+
+// Commit - driver last commit, to set commit set flags:
+// go build -ldflags "-X github.com/Nexenta/edgefs/src/csi/edgefs-csi/csi.Commit=..."
+var Commit string
+
+// DateTime - driver build datetime, to set commit set flags:
+// go build -ldflags "-X github.com/Nexenta/edgefs/src/csi/edgefs-csi/csi.DateTime=..."
+var DateTime string
+
+type Driver struct {
+	name       string
+	role       Role
+	driverType DriverType
+	endpoint   string
+	nodeID     string
+	server     *grpc.Server
+	logger     *logrus.Entry
 }
 
-/*NewDriver creates new edgefs csi driver with required capabilities */
-func NewDriver(nodeID string, endpoint string) *driver {
-	log.Info("NewDriver: ", DriverName, " version:", version)
+type Args struct {
+	Role       Role
+	DriverType DriverType
+	NodeID     string
+	Endpoint   string
+	Logger     *logrus.Entry
+}
 
-	d := &driver{}
+func NewDriver(args Args) (*Driver, error) {
+	l := args.Logger.WithField("cmp", "Driver")
 
-	d.endpoint = endpoint
+	var driverName string
+	switch args.DriverType {
+	case DriverTypeNFS:
+		driverName = EdgefsNfsDriverName
+	case DriverTypeISCSI:
+		driverName = EdgefsIscsiDriverName
+	default:
+		l.Errorf("Unknown driverType: %s", args.DriverType)
+		return nil, fmt.Errorf("Unknown driverType: %s", args.DriverType)
+	}
 
-	csiDriver := csicommon.NewCSIDriver(DriverName, version, nodeID)
-	csiDriver.AddControllerServiceCapabilities(
-		[]csi.ControllerServiceCapability_RPC_Type{
-			csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-			csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-		})
-	csiDriver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER})
+	l.Infof("create new %s csi driver: %s@%s-%s (%s)", args.DriverType, driverName, Version, Commit, DateTime)
 
-	d.csiDriver = csiDriver
+	d := &Driver{
+		name:       driverName,
+		role:       args.Role,
+		driverType: args.DriverType,
+		endpoint:   args.Endpoint,
+		nodeID:     args.NodeID,
+		logger:     l,
+	}
 
-	return d
+	return d, nil
+}
+
+func (d *Driver) Run() error {
+	d.logger.Info("run")
+
+	parsedURL, err := url.Parse(d.endpoint)
+	if err != nil {
+		return fmt.Errorf("Failed to parse endpoint: %s", d.endpoint)
+	}
+
+	if parsedURL.Scheme != "unix" {
+		return fmt.Errorf("Only unix domain sockets are supported")
+	}
+
+	socket := filepath.FromSlash(parsedURL.Path)
+	if parsedURL.Host != "" {
+		socket = path.Join(parsedURL.Host, socket)
+	}
+
+	d.logger.Infof("parsed unix domain socket: %s", socket)
+
+	//remove old socket file if exists
+	if err := os.Remove(socket); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Cannot remove unix domain socket: %s", socket)
+	}
+
+	listener, err := net.Listen(parsedURL.Scheme, socket)
+	if err != nil {
+		return fmt.Errorf("Failed to create socket listener: %s", err)
+	}
+
+	d.server = grpc.NewServer(grpc.UnaryInterceptor(d.grpcErrorHandler))
+
+	// IdentityServer - should be running on both controller and node pods
+	csi.RegisterIdentityServer(d.server, NewIdentityServer(d))
+
+	if d.role.IsController() {
+		controllerServer, err := NewControllerServer(d)
+		if err != nil {
+			return fmt.Errorf("Failed to create ControllerServer: %s", err)
+		}
+		csi.RegisterControllerServer(d.server, controllerServer)
+	}
+
+	if d.role.IsNode() {
+		nodeServer, err := NewNodeServer(d)
+		if err != nil {
+			return fmt.Errorf("Failed to create NodeServer: %s", err)
+		}
+		csi.RegisterNodeServer(d.server, nodeServer)
+	}
+
+	return d.server.Serve(listener)
 }
 
 /*NewControllerServer created commin controller server */
-func NewControllerServer(d *driver) *controllerServer {
-	return &controllerServer{
-		DefaultControllerServer: csicommon.NewDefaultControllerServer(d.csiDriver),
+func NewControllerServer(d *Driver) (csi.ControllerServer, error) {
+	d.logger.Infof("NewControllerServer DriverType: %s", d.driverType)
+	switch d.driverType {
+	case DriverTypeISCSI:
+		return &iscsi.ControllerServer{
+			Logger: d.logger,
+		}, nil
+	case DriverTypeNFS:
+		return &nfs.ControllerServer{
+			Logger: d.logger,
+		}, nil
 	}
+
+	return nil, fmt.Errorf("Unknown driver type %s for Controller server", d.driverType)
 }
 
 /*NewNodeServer creates new default Node server */
-func NewNodeServer(d *driver) *nodeServer {
-	return &nodeServer{
-		DefaultNodeServer: csicommon.NewDefaultNodeServer(d.csiDriver),
+func NewNodeServer(d *Driver) (csi.NodeServer, error) {
+	d.logger.Infof("NewNodeServer DriverType: %s", d.driverType)
+	switch d.driverType {
+	case DriverTypeISCSI:
+		return &iscsi.NodeServer{
+			NodeID: d.nodeID,
+			Logger: d.logger,
+		}, nil
+	case DriverTypeNFS:
+		return &nfs.NodeServer{
+			NodeID: d.nodeID,
+			Logger: d.logger,
+		}, nil
 	}
+	return nil, fmt.Errorf("Unknown driver type %s for NodeServer", d.driverType)
 }
 
-func (d *driver) Run() {
-	csicommon.RunControllerandNodePublishServer(d.endpoint, d.csiDriver, NewControllerServer(d), NewNodeServer(d))
+func (d *Driver) grpcErrorHandler(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (interface{}, error) {
+	resp, err := handler(ctx, req)
+	if err != nil {
+		d.logger.WithField("func", "grpc").Error(err)
+	}
+	return resp, err
 }
