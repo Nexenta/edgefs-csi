@@ -104,7 +104,7 @@ func homeDir() string {
 }
 
 /* Will check k8s edgefs cluster existance and will update EdgefsClusterConfig information*/
-func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, err error) {
+func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (clusterExists bool, err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
 	if config.K8sClientInCluster {
@@ -129,7 +129,7 @@ func DetectEdgefsK8sCluster(config *EdgefsClusterConfig) (clusterExists bool, er
 		return false, err
 	}
 
-	svcs, err := clientset.CoreV1().Services(config.K8sEdgefsNamespace).List(metav1.ListOptions{})
+	svcs, err := clientset.CoreV1().Services(segment).List(metav1.ListOptions{})
 	if err != nil {
 		return false, err
 	}

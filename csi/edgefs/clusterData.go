@@ -46,12 +46,14 @@ func (clusterData *ClusterData) FindServiceDataByVolumeID(volumeID IVolumeId) (*
 
 	clusterServiceData := clusterData.ServicesData
 	// serviceName defined in VolumeID, then we need to check volume existance for this service
+	var serviceDataFoundByName *ServiceData
 	if volumeID.GetServiceName() != "" {
 		serviceData, err := clusterData.FindServiceDataByServiceName(volumeID.GetServiceName())
 		if err != nil {
 			return nil, err
 		}
 		if serviceData != nil {
+			serviceDataFoundByName = serviceData
 			clusterServiceData = []ServiceData{*serviceData}
 		} else {
 			return nil, fmt.Errorf("Service data ptr is nil for service %s ", volumeID.GetServiceName())
@@ -66,7 +68,7 @@ func (clusterData *ClusterData) FindServiceDataByVolumeID(volumeID IVolumeId) (*
 			return &serviceData, nil
 		}
 	}
-	return nil, &errors.EdgefsError{fmt.Sprintf("Volume '%s' not found in cluster ", volumeID.GetObjectPath()), errors.EdgefsVolumeNotExistsErrorCode}
+	return serviceDataFoundByName, &errors.EdgefsError{fmt.Sprintf("Volume '%s' not found in cluster ", volumeID.GetObjectPath()), errors.EdgefsVolumeNotExistsErrorCode}
 }
 
 func (clusterData *ClusterData) FindServiceDataByServiceName(serviceName string) (serviceData *ServiceData, err error) {

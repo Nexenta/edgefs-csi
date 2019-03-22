@@ -31,24 +31,35 @@ import (
 type IVolumeId interface {
 	GetServiceName() string
 	SetServiceName(name string)
+	// Object to comapare volumes inside service cluster/tenant/bucket
 	GetObjectPath() string
+	// return csi volume id for for edgefs object segment:service@cluster/tenant/bucket
+	GetCSIVolumeID() string
 	Validate() error
 }
 
 type NfsVolumeId struct {
+	Segment string
 	Service string
 	Cluster string
 	Tenant  string
 	Bucket  string
 }
 
-func (nfsVolumeId *NfsVolumeId) GetServiceName() string { return nfsVolumeId.Service }
+func (nfsVolumeId *NfsVolumeId) GetServiceName() string     { return nfsVolumeId.Service }
 func (nfsVolumeId *NfsVolumeId) SetServiceName(name string) { nfsVolumeId.Service = name }
 func (nfsVolumeId *NfsVolumeId) GetObjectPath() string {
 	return fmt.Sprintf("%s/%s/%s", nfsVolumeId.Cluster, nfsVolumeId.Tenant, nfsVolumeId.Bucket)
 }
+func (nfsVolumeId *NfsVolumeId) GetCSIVolumeID() string {
+	return fmt.Sprintf("%s:%s@%s/%s/%s", nfsVolumeId.Segment, nfsVolumeId.Service, nfsVolumeId.Cluster, nfsVolumeId.Tenant, nfsVolumeId.Bucket)
+}
 func (nfsVolumeId *NfsVolumeId) Validate() error {
 	missed := make([]string, 0)
+
+	if nfsVolumeId.Segment == "" {
+		missed = append(missed, "Segment")
+	}
 	if nfsVolumeId.Cluster == "" {
 		missed = append(missed, "Cluster")
 	}
@@ -65,6 +76,7 @@ func (nfsVolumeId *NfsVolumeId) Validate() error {
 }
 
 type IscsiVolumeId struct {
+	Segment string
 	Service string
 	Cluster string
 	Tenant  string
@@ -72,14 +84,21 @@ type IscsiVolumeId struct {
 	Object  string
 }
 
-func (iscsiVolumeId *IscsiVolumeId) GetServiceName() string { return iscsiVolumeId.Service }
+func (iscsiVolumeId *IscsiVolumeId) GetServiceName() string     { return iscsiVolumeId.Service }
 func (iscsiVolumeId *IscsiVolumeId) SetServiceName(name string) { iscsiVolumeId.Service = name }
 func (iscsiVolumeId *IscsiVolumeId) GetObjectPath() string {
 	return fmt.Sprintf("%s/%s/%s/%s", iscsiVolumeId.Cluster, iscsiVolumeId.Tenant, iscsiVolumeId.Bucket, iscsiVolumeId.Object)
 }
+func (iscsiVolumeId *IscsiVolumeId) GetCSIVolumeID() string {
+	return fmt.Sprintf("%s:%s@%s/%s/%s/%s", iscsiVolumeId.Segment, iscsiVolumeId.Service, iscsiVolumeId.Cluster, iscsiVolumeId.Tenant, iscsiVolumeId.Bucket, iscsiVolumeId.Object)
+}
 
 func (iscsiVolumeId *IscsiVolumeId) Validate() error {
 	missed := make([]string, 0)
+
+	if iscsiVolumeId.Segment == "" {
+		missed = append(missed, "Segment")
+	}
 	if iscsiVolumeId.Cluster == "" {
 		missed = append(missed, "Cluster")
 	}
@@ -99,7 +118,8 @@ func (iscsiVolumeId *IscsiVolumeId) Validate() error {
 	return nil
 }
 
-func ParseNfsVolumeID(volumeID string, configOptions map[string]string) (vol *NfsVolumeId, err error) {
+// Canonical NfsVolumeID is segment:service@cluster/tenant/bucket
+func ParseNfsVolumeID(volumeID string, clusterConfig *EdgefsClusterConfig) (vol *NfsVolumeId, err error) {
 
 	vol = &NfsVolumeId{}
 
@@ -108,43 +128,47 @@ func ParseNfsVolumeID(volumeID string, configOptions map[string]string) (vol *Nf
 	// object path elements like cluster/tenant/bucket
 	var pathObjects []string
 	if len(parts) < 2 {
-		// no service notation
-		if service, ok := configOptions["service"]; ok {
-			vol.Service = service
-		}
+		segment, _ := clusterConfig.GetSegment("")
+		vol.Segment = segment
 		pathObjects = strings.Split(parts[0], "/")
+
 	} else {
-		vol.Service = parts[0]
-		if vol.Service == "" {
-			if service, ok := configOptions["service"]; ok {
-				vol.Service = service
-			}
+
+		segmentServiceParts := strings.Split(parts[0], ":")
+
+		vol.Segment = segmentServiceParts[0]
+		if len(vol.Segment) == 0 {
+			segment, _ := clusterConfig.GetSegment("")
+			vol.Segment = segment
+		}
+		if len(segmentServiceParts) >= 2 {
+			vol.Service = segmentServiceParts[1]
 		}
 		pathObjects = strings.Split(parts[1], "/")
 	}
 
 	// bucket only
 	if len(pathObjects) == 1 {
-		if cluster, ok := configOptions["cluster"]; ok {
-			vol.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			vol.Cluster = clusterConfig.Cluster
 		}
 
-		if tenant, ok := configOptions["tenant"]; ok {
-			vol.Tenant = tenant
+		if len(clusterConfig.Tenant) > 0 {
+			vol.Tenant = clusterConfig.Tenant
 		}
 
 		vol.Bucket = pathObjects[0]
 	} else if len(pathObjects) == 2 {
 		// tenant and bucket only
 
-		if cluster, ok := configOptions["cluster"]; ok {
-			vol.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			vol.Cluster = clusterConfig.Cluster
 		}
 
 		vol.Tenant = pathObjects[0]
 		if vol.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				vol.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0 {
+				vol.Tenant = clusterConfig.Tenant
 			}
 		}
 
@@ -155,16 +179,16 @@ func ParseNfsVolumeID(volumeID string, configOptions map[string]string) (vol *Nf
 		//Cluster
 		vol.Cluster = pathObjects[0]
 		if vol.Cluster == "" {
-			if cluster, ok := configOptions["cluster"]; ok {
-				vol.Cluster = cluster
+			if len(clusterConfig.Cluster) > 0 {
+				vol.Cluster = clusterConfig.Cluster
 			}
 		}
 
 		//Tenant
 		vol.Tenant = pathObjects[1]
 		if vol.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				vol.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0 {
+				vol.Tenant = clusterConfig.Tenant
 			}
 		}
 
@@ -175,7 +199,7 @@ func ParseNfsVolumeID(volumeID string, configOptions map[string]string) (vol *Nf
 	return vol, vol.Validate()
 }
 
-func ParseIscsiVolumeID(volumeID string, configOptions map[string]string) (vol *IscsiVolumeId, err error) {
+func ParseIscsiVolumeID(volumeID string, clusterConfig *EdgefsClusterConfig) (vol *IscsiVolumeId, err error) {
 
 	vol = &IscsiVolumeId{}
 
@@ -184,50 +208,55 @@ func ParseIscsiVolumeID(volumeID string, configOptions map[string]string) (vol *
 	// object path elements like cluster/tenant/bucket
 	var pathObjects []string
 	if len(parts) < 2 {
-		// no service notation
-		if service, ok := configOptions["service"]; ok {
-			vol.Service = service
-		}
+
+		segment, _ := clusterConfig.GetSegment("")
+
+		vol.Segment = segment
 		pathObjects = strings.Split(parts[0], "/")
 	} else {
-		vol.Service = parts[0]
-		if vol.Service == "" {
-			if service, ok := configOptions["service"]; ok {
-				vol.Service = service
-			}
+		segmentServiceParts := strings.Split(parts[0], ":")
+
+		vol.Segment = segmentServiceParts[0]
+		if len(vol.Segment) == 0 {
+			segment, _ := clusterConfig.GetSegment("")
+                        vol.Segment = segment
+                }
+
+		if len(segmentServiceParts) >= 2 {
+			vol.Service = segmentServiceParts[1]
 		}
 		pathObjects = strings.Split(parts[1], "/")
 	}
 
 	// lun only
 	if len(pathObjects) == 1 {
-		if cluster, ok := configOptions["cluster"]; ok {
-			vol.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			vol.Cluster = clusterConfig.Cluster
 		}
 
-		if tenant, ok := configOptions["tenant"]; ok {
-			vol.Tenant = tenant
+		if len(clusterConfig.Tenant) > 0 {
+			vol.Tenant = clusterConfig.Tenant
 		}
 
-		if bucket, ok := configOptions["bucket"]; ok {
-			vol.Bucket = bucket
+		if len(clusterConfig.Bucket) > 0 {
+			vol.Bucket = clusterConfig.Bucket
 		}
 
 		vol.Object = pathObjects[0]
 	} else if len(pathObjects) == 2 {
 		// bucket, lun
-		if cluster, ok := configOptions["cluster"]; ok {
-			vol.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			vol.Cluster = clusterConfig.Cluster
 		}
 
-		if tenant, ok := configOptions["tenant"]; ok {
-			vol.Tenant = tenant
+		if len(clusterConfig.Tenant) > 0 {
+			vol.Tenant = clusterConfig.Tenant
 		}
 
 		vol.Bucket = pathObjects[0]
 		if vol.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				vol.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				vol.Bucket = clusterConfig.Bucket
 			}
 		}
 
@@ -235,21 +264,21 @@ func ParseIscsiVolumeID(volumeID string, configOptions map[string]string) (vol *
 	} else if len(pathObjects) == 3 {
 		// tenant, bucket, lun
 
-		if cluster, ok := configOptions["cluster"]; ok {
-			vol.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			vol.Cluster = clusterConfig.Cluster
 		}
 
 		vol.Tenant = pathObjects[0]
 		if vol.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				vol.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0 {
+				vol.Tenant = clusterConfig.Tenant
 			}
 		}
 
 		vol.Bucket = pathObjects[1]
 		if vol.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				vol.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				vol.Bucket = clusterConfig.Bucket
 			}
 		}
 
@@ -260,24 +289,24 @@ func ParseIscsiVolumeID(volumeID string, configOptions map[string]string) (vol *
 		//Cluster
 		vol.Cluster = pathObjects[0]
 		if vol.Cluster == "" {
-			if cluster, ok := configOptions["cluster"]; ok {
-				vol.Cluster = cluster
+			if len(clusterConfig.Cluster) > 0 {
+				vol.Cluster = clusterConfig.Cluster
 			}
 		}
 
 		//Tenant
 		vol.Tenant = pathObjects[1]
 		if vol.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				vol.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0 {
+				vol.Tenant = clusterConfig.Tenant
 			}
 		}
 
 		//Bucket
 		vol.Bucket = pathObjects[2]
 		if vol.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				vol.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				vol.Bucket = clusterConfig.Bucket
 			}
 		}
 		vol.Object = pathObjects[3]

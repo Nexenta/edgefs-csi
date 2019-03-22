@@ -53,13 +53,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	l := ns.Logger.WithField("func", "NodePublishVolume()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, ns.Logger)
-	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
-	//l.Info("NodeServer::NodePublishVolume:edgefs : %+v", edgefs)
 	volumeIDStr := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 
@@ -71,17 +64,29 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.InvalidArgument, "Target path must be provided")
 	}
 
-	volumeID, err := client.ParseIscsiVolumeID(volumeIDStr, edgefs.PrepareConfigMap())
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_ISCSI)
+	if err != nil {
+		l.Errorf("failed to read config file.  Error: %+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	volumeID, err := client.ParseIscsiVolumeID(volumeIDStr, &clusterConfig)
 	if err != nil {
 		l.Errorf("Couldn't parse volumeID %s", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeID.Segment, ns.Logger)
+	if err != nil {
+		l.Errorf("Failed to get EdgeFS instance, Error: %+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// get all services information to find already existing volume by path
 	clusterData, err := edgefs.GetClusterData()
 	if err != nil {
 		l.Errorf("Couldn't get ClusterData : %s", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	//l.Infof("VolumeID: %s ClusterData: %+v", volumeID, clusterData)
@@ -93,8 +98,6 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	l.Infof("Service %s found by volumeID %s", serviceData.GetService().GetName(), volumeID)
-	// assign appropriate service name to VolumeID
-	//volumeID.SetServiceName(serviceData.GetService().GetName())
 
 	mountParams, err := serviceData.GetEdgefsVolumeParams(volumeID)
 	if err != nil {
@@ -210,12 +213,10 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "Volume not mounted")
 	}
 
-	PrepareDeviceAtMountPathForRemoval(req.GetTargetPath(), true, ns.Logger)
-	/*
+	err = PrepareDeviceAtMountPathForRemoval(req.GetTargetPath(), true, ns.Logger)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		l.Warningf("PrepareDeviceAtMountPathForRemoval error status: %s", err)
 	}
-	*/
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }

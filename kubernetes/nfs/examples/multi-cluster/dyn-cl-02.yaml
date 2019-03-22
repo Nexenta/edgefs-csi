@@ -1,0 +1,49 @@
+# This YAML file contains nginx & csi cinder driver objects,
+# which are necessary to run nginx with csi cinder driver.
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: edgefs-nfs-csi-cluster-02-storageclass
+provisioner: io.edgefs.csi.nfs
+parameters:
+#  segment: rook-edgefs-02
+#  service: nfs02
+  cluster: cltest
+  tenant:  test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edgefs-nfs-csi-dynamic-pvc-cluster-02
+  namespace: rook-edgefs-02
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: edgefs-nfs-csi-cluster-02-storageclass
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-cl-02
+  namespace: rook-edgefs-02
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: nginx
+    ports:
+    - containerPort: 80
+      protocol: TCP
+    volumeMounts:
+      - mountPath: /var/lib/www/html
+        name: edgefs-nfs-csi-volume 
+  volumes:
+  - name: edgefs-nfs-csi-volume
+    persistentVolumeClaim:
+      claimName: edgefs-nfs-csi-dynamic-pvc-cluster-02
+      readOnly: false

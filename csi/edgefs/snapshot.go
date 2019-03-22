@@ -83,7 +83,7 @@ func (snap *IscsiSnapshotId) Validate() error {
 	return nil
 }
 
-func ParseIscsiSnapshotID(snapshotIDStr string, configOptions map[string]string) (IscsiSnapshotId, error) {
+func ParseIscsiSnapshotID(snapshotIDStr string, clusterConfig *EdgefsClusterConfig) (IscsiSnapshotId, error) {
 
 	parts := strings.Split(snapshotIDStr, "@")
 	if len(parts) != 2 {
@@ -97,33 +97,33 @@ func ParseIscsiSnapshotID(snapshotIDStr string, configOptions map[string]string)
 
 	// Object name only i.e snapshotID is object@snapname
 	if len(objectPathParts) == 1 {
-		if cluster, ok := configOptions["cluster"]; ok {
-			snapshotID.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			snapshotID.Cluster = clusterConfig.Cluster
 		}
 
-		if tenant, ok := configOptions["tenant"]; ok {
-			snapshotID.Tenant = tenant
+		if len(clusterConfig.Tenant) > 0 {
+			snapshotID.Tenant = clusterConfig.Tenant
 		}
 
-		if bucket, ok := configOptions["bucket"]; ok {
-			snapshotID.Bucket = bucket
+		if len(clusterConfig.Bucket) > 0 {
+			snapshotID.Bucket = clusterConfig.Bucket
 		}
 
 		snapshotID.Object = objectPathParts[0]
 	} else if len(objectPathParts) == 2 {
 		// bucket/object@snapname
-		if cluster, ok := configOptions["cluster"]; ok {
-			snapshotID.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0 {
+			snapshotID.Cluster = clusterConfig.Cluster
 		}
 
-		if tenant, ok := configOptions["tenant"]; ok {
-			snapshotID.Tenant = tenant
+		if len(clusterConfig.Tenant) > 0 {
+			snapshotID.Tenant = clusterConfig.Tenant
 		}
 
 		snapshotID.Bucket = objectPathParts[0]
 		if snapshotID.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				snapshotID.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				snapshotID.Bucket = clusterConfig.Bucket
 			}
 		}
 
@@ -131,21 +131,21 @@ func ParseIscsiSnapshotID(snapshotIDStr string, configOptions map[string]string)
 	} else if len(objectPathParts) == 3 {
 		// tenant/bucket/object@snapname
 
-		if cluster, ok := configOptions["cluster"]; ok {
-			snapshotID.Cluster = cluster
+		if len(clusterConfig.Cluster) > 0  {
+			snapshotID.Cluster = clusterConfig.Cluster
 		}
 
 		snapshotID.Tenant = objectPathParts[0]
 		if snapshotID.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				snapshotID.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0  {
+				snapshotID.Tenant = clusterConfig.Tenant
 			}
 		}
 
 		snapshotID.Bucket = objectPathParts[1]
 		if snapshotID.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				snapshotID.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				snapshotID.Bucket = clusterConfig.Bucket
 			}
 		}
 
@@ -155,22 +155,22 @@ func ParseIscsiSnapshotID(snapshotIDStr string, configOptions map[string]string)
 		//Cluster
 		snapshotID.Cluster = objectPathParts[0]
 		if snapshotID.Cluster == "" {
-			if cluster, ok := configOptions["cluster"]; ok {
-				snapshotID.Cluster = cluster
+			if len(clusterConfig.Cluster) > 0 {
+				snapshotID.Cluster = clusterConfig.Cluster
 			}
 		}
 		//Tenant
 		snapshotID.Tenant = objectPathParts[1]
 		if snapshotID.Tenant == "" {
-			if tenant, ok := configOptions["tenant"]; ok {
-				snapshotID.Tenant = tenant
+			if len(clusterConfig.Tenant) > 0 {
+				snapshotID.Tenant = clusterConfig.Tenant
 			}
 		}
 		//Bucket
 		snapshotID.Bucket = objectPathParts[2]
 		if snapshotID.Bucket == "" {
-			if bucket, ok := configOptions["bucket"]; ok {
-				snapshotID.Bucket = bucket
+			if len(clusterConfig.Bucket) > 0 {
+				snapshotID.Bucket = clusterConfig.Bucket
 			}
 		}
 		snapshotID.Object = objectPathParts[3]
