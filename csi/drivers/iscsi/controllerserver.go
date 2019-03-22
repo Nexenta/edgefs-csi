@@ -32,10 +32,10 @@ import (
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/pborman/uuid"
+	logrus "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	logrus "github.com/sirupsen/logrus"
 )
 
 // supportedControllerCapabilities - driver controller capabilities
@@ -73,12 +73,6 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	l := cs.Logger.WithField("func", "CreateVolume()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
-	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
 	// Volume Name
 	volumeName := req.GetName()
 	if len(volumeName) == 0 {
@@ -95,9 +89,34 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	requiredBytes := req.GetCapacityRange().GetRequiredBytes()
 	params["size"] = strconv.FormatInt(requiredBytes, 10)
 
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_ISCSI)
+	if err != nil {
+		err = fmt.Errorf("failed to read config file.  Error: %+v", err)
+		l.WithField("func", "LoadEdgefsClusterConfig()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// Get segment value from parameters or if not defined get default one
+	segment, err := clusterConfig.GetSegment(params["segment"])
+	if err != nil {
+		l.WithField("func", "GetSegment()").Warningf("%+v", err)
+	}
+
+	// Init Edgefs struct  and discovery edgefs services in segment
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, segment, cs.Logger)
+	if err != nil {
+		l.WithField("func", "InitEdgeFS()").Errorf("Failed to get EdgeFS instance, %s", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
 	volumePath := ""
+	// add current segment to volume path
+	volumePath += segment
+
 	if service, ok := params["service"]; ok {
-		volumePath += fmt.Sprintf("%s@", service)
+		volumePath += fmt.Sprintf(":%s@", service)
+	} else {
+		volumePath += "@"
 	}
 
 	if cluster, ok := params["cluster"]; ok {
@@ -111,7 +130,6 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if bucket, ok := params["bucket"]; ok {
 		volumePath += fmt.Sprintf("%s/", bucket)
 	}
-
 	volumePath += volumeName
 
 	var sourceSnapshotID string
@@ -150,17 +168,31 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	l := cs.Logger.WithField("func", "DeleteVolume()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
-	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
 	// VolumeID
-	volumeID := req.GetVolumeId()
+	volumeHandle := req.GetVolumeId()
 	if len(req.GetVolumeId()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume id must be provided")
 	}
+
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_ISCSI)
+	if err != nil {
+		err = fmt.Errorf("failed to read config file.  Error: %+v", err)
+		l.WithField("func", "LoadEdgefsClusterConfig()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	volumeID, err := client.ParseIscsiVolumeID(volumeHandle, &clusterConfig)
+	if err != nil {
+		err = fmt.Errorf("Can't parse csi volumeID %s.  Error: %+v", volumeHandle, err)
+		l.WithField("func", "ParseIscsiVolumeID()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+        edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeID.Segment, cs.Logger)
+        if err != nil {
+		l.WithField("func", "InitEdgeFS()").Errorf("Failed to get EdgeFS instance, %s", err)
+		return nil, status.Error(codes.Internal, err.Error())
+        }
 
 	// If the volume is not found, then we can return OK
 	/*
@@ -210,7 +242,7 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	l := cs.Logger.WithField("func", "ListVolumes()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
+	edgefs, err := client.InitEdgeFS(nil, client.EdgefsServiceType_ISCSI, "", cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err
@@ -242,7 +274,7 @@ func (cs *ControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	l := cs.Logger.WithField("func", "CreateSnapshot()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
+	edgefs, err := client.InitEdgeFS(nil, client.EdgefsServiceType_ISCSI, "", cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err
@@ -287,7 +319,7 @@ func (cs *ControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 	l := cs.Logger.WithField("func", "DeleteSnapshot()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
+	edgefs, err := client.InitEdgeFS(nil, client.EdgefsServiceType_ISCSI, "", cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err
@@ -313,7 +345,7 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 	l := cs.Logger.WithField("func", "ListSnapshots()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_ISCSI, cs.Logger)
+	edgefs, err := client.InitEdgeFS(nil, client.EdgefsServiceType_ISCSI, "", cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err

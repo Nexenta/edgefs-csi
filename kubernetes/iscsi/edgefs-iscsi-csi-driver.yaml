@@ -125,10 +125,13 @@ spec:
 ---
 
 kind: StatefulSet
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 metadata:
   name: edgefs-iscsi-csi-controller
 spec:
+  selector:
+    matchLabels:
+      app: edgefs-iscsi-csi-controller
   serviceName: edgefs-iscsi-csi-controller
   replicas: 1
   template:

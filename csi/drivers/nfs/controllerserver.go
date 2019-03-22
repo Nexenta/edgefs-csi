@@ -73,12 +73,6 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	l := cs.Logger.WithField("func", "CreateVolume()")
 	l.Infof("req: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_NFS, cs.Logger)
-	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
 	// Volume Name
 	volumeName := req.GetName()
 	if len(volumeName) == 0 {
@@ -98,9 +92,34 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	params["size"] = strconv.FormatInt(requiredBytes, 10)
 
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_NFS)
+	if err != nil {
+		err = fmt.Errorf("failed to read config file.  Error: %+v", err)
+		l.WithField("func", "LoadEdgefsClusterConfig()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// Get segment value from parameters or if not defined get default one
+	segment, err := clusterConfig.GetSegment(params["segment"])
+	if err != nil {
+		l.WithField("func", "GetSegment()").Warningf("%+v", err)
+	}
+
+	// Init Edgefs struct  and discovery edgefs services in segment
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_NFS, segment, cs.Logger)
+	if err != nil {
+		l.WithField("func", "InitEdgeFS()").Errorf("Failed to get EdgeFS instance, %s", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
 	volumePath := ""
+	// add current segment to volume path
+	volumePath += segment
+
 	if service, ok := params["service"]; ok {
-		volumePath += fmt.Sprintf("%s@", service)
+		volumePath += fmt.Sprintf(":%s@", service)
+	} else {
+		volumePath += "@"
 	}
 
 	if cluster, ok := params["cluster"]; ok {
@@ -116,7 +135,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	newVolumeID, err := edgefs.CreateNfsVolume(volumePath, 0, params)
 	if err != nil {
 		l.Errorf("Failed to create NFS volume %s: %s", volumePath, err)
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// CreateVolume response
@@ -134,16 +153,30 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	l := cs.Logger.WithField("func", "DeleteVolume()")
 	l.Infof("req: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_NFS, cs.Logger)
-	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
 	// VolumeID
-	volumeID := req.GetVolumeId()
+	csiVolumeID := req.GetVolumeId()
 	if len(req.GetVolumeId()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume id must be provided")
+	}
+
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_NFS)
+	if err != nil {
+		err = fmt.Errorf("failed to read config file.  Error: %+v", err)
+		l.WithField("func", "DeleteVolume()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	volumeID, err := client.ParseNfsVolumeID(csiVolumeID, &clusterConfig)
+	if err != nil {
+		err = fmt.Errorf("Can't parse csi volumeID %s.  Error: %+v", csiVolumeID, err)
+		l.WithField("func", "DeleteVolume)").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_NFS, volumeID.Segment, cs.Logger)
+	if err != nil {
+		l.WithField("func", "InitEdgeFS()").Errorf("Failed to get EdgeFS instance, %s", err)
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// If the volume is not found, then we can return OK
@@ -218,7 +251,14 @@ func (cs *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	l := cs.Logger.WithField("func", "GetCapacity()")
 	l.Infof("req: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_NFS, cs.Logger)
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_NFS)
+	if err != nil {
+		err = fmt.Errorf("failed to read config file.  Error: %+v", err)
+		l.WithField("func", "DeleteVolume()").Errorf("%+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_NFS, "", cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err

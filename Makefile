@@ -1,12 +1,12 @@
 PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
-REGISTRY=edgefs/edgefs-csi
+REGISTRY=edgefs
 IMAGE_TAG=latest
 
-.PHONY: all nfs 
+.PHONY: all csi
 
-all: nfs
+all: csi
 
 .get:
 	GOPATH=`pwd` go get || true
@@ -18,13 +18,13 @@ all: nfs
 	GOPATH=`pwd` go get || true
 	touch $@
 
-nfs: .get
+csi: .get
 	# dynamic builds faster, but not good for Dockerfile
 	#GOPATH=`pwd` go build -o $(PLUGIN_NAME) main.go
 	# static build
 	GOPATH=`pwd` CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(PLUGIN_NAME) main.go
 
-build-container: nfs 
+build-container: csi
 	docker build -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
 
 push-container: build-container

@@ -53,40 +53,44 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	l := ns.Logger.WithField("func", "NodePublishVolume()")
 	l.Infof("request: '%+v'", *req)
 
-	edgefs, err := client.InitEdgeFS(client.EdgefsServiceType_NFS, ns.Logger)
+        volumeIDStr := req.GetVolumeId()
+        targetPath := req.GetTargetPath()
+
+        // Check arguments
+        if len(volumeIDStr) == 0 {
+                return nil, status.Error(codes.InvalidArgument, "Volume id must be provided")
+        }
+        if len(targetPath) == 0 {
+                return nil, status.Error(codes.InvalidArgument, "Target path must be provided")
+        }
+
+	clusterConfig, err := client.LoadEdgefsClusterConfig(client.EdgefsServiceType_NFS)
+        if err != nil {
+                l.Errorf("failed to read config file.  Error: %+v", err)
+                return nil, status.Error(codes.Internal, err.Error())
+        }
+
+        volumeID, err := client.ParseNfsVolumeID(volumeIDStr, &clusterConfig)
+        if err != nil {
+                l.Errorf("Couldn't ParseNfsVolumeID Error: %s", err)
+                return nil, status.Error(codes.Internal, err.Error())
+        }
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_NFS, volumeID.Segment, ns.Logger)
 	if err != nil {
-		l.Fatal("Failed to get EdgeFS instance")
-		return nil, err
-	}
-
-	//l.Info("NodeServer::NodePublishVolume:edgefs : %+v", edgefs)
-	volumeIDStr := req.GetVolumeId()
-	targetPath := req.GetTargetPath()
-
-	// Check arguments
-	if len(volumeIDStr) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Volume id must be provided")
-	}
-	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "Target path must be provided")
-	}
-
-	volumeID, err := client.ParseNfsVolumeID(volumeIDStr, edgefs.PrepareConfigMap())
-	if err != nil {
-		l.Errorf("Couldn't ParseNfsVolumeID : %s", err)
-		return nil, err
+		l.Errorf("Failed to get EdgeFS instance, Error: %+v", err)
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// get all services information to find already existing volume by path
 	clusterData, err := edgefs.GetClusterData()
 	if err != nil {
-		l.Errorf("Couldn't get ClusterData : %s", err)
-		return nil, err
+		l.Errorf("Couldn't get ClusterData Error: %s", err)
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// find service to serve
 	serviceData, err := clusterData.FindServiceDataByVolumeID(volumeID)
-
 	if err != nil {
 		l.Errorf("Can't find serviceData by volumeID  %+v. Error: %v", volumeID, err)
 		return nil, status.Errorf(codes.NotFound, "Can't find service data by VolumeID:%s Error:%s", volumeID, err)
@@ -132,7 +136,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 	}
 
-	l.Infof("target %v\nfstype %v\nreadonly %v\n mountflags %v\n", targetPath, fsType, readOnly, mountFlags)
+	l.Infof("target %v, fstype %v, readonly %v, mountflags %v", targetPath, fsType, readOnly, mountFlags)
 	//l.Infof("EdgeFS export %s endpoint is %s", volID.FullObjectPath(), nfsEndpoint)
 	mountPoint := mountParams["mountPoint"]
 	err = mounter.Mount(mountPoint, targetPath, "nfs", mountOptions)
