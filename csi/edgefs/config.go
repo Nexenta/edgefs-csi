@@ -99,7 +99,7 @@ func (config *EdgefsClusterConfig) GetSegment(segment string) (string, error) {
 
 	if len(config.K8sEdgefsNamespaces) > 0 {
 		if len(strings.TrimSpace(segment)) == 0 {
-			return config.K8sEdgefsNamespaces[0], fmt.Errorf("No segment passed. Segment %s should be used", defaultK8sEdgefsNamespace)
+			return config.K8sEdgefsNamespaces[0], fmt.Errorf("No segment passed. Segment %s should be used", config.K8sEdgefsNamespaces[0])
 		}
 
 		for _, sg := range config.K8sEdgefsNamespaces {
@@ -108,7 +108,7 @@ func (config *EdgefsClusterConfig) GetSegment(segment string) (string, error) {
 			}
 		}
 		// returns first namespaces element
-		return config.K8sEdgefsNamespaces[0], fmt.Errorf("Segment %s not found in available K8sEdgefsNamespaces list %+v. Segment %s should be used ", segment, config.K8sEdgefsNamespaces, defaultK8sEdgefsNamespace)
+		return config.K8sEdgefsNamespaces[0], fmt.Errorf("Segment %s not found in available K8sEdgefsNamespaces list %+v. Segment %s should be used ", segment, config.K8sEdgefsNamespaces, config.K8sEdgefsNamespaces[0])
 	}
 
 	return defaultK8sEdgefsNamespace, fmt.Errorf("No K8sEdgefsNamespaces available in CSI configuration file. Segment %s should be used instead of %s", defaultK8sEdgefsNamespace, segment)

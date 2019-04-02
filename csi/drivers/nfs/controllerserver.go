@@ -131,7 +131,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	volumePath += volumeName
 
-	l.Info("volumePath: %s", volumePath)
+	l.Infof("volumePath: %s", volumePath)
 	newVolumeID, err := edgefs.CreateNfsVolume(volumePath, 0, params)
 	if err != nil {
 		l.Errorf("Failed to create NFS volume %s: %s", volumePath, err)

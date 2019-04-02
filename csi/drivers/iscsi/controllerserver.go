@@ -145,7 +145,7 @@ func (cs *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 	}
 
-	l.Info("volumePath: ", volumePath)
+	l.Infof("volumePath: %s", volumePath)
 	newVolumeID, err := edgefs.CreateIscsiVolume(volumePath, sourceSnapshotID, requiredBytes, params)
 	if err != nil {
 		l.Errorf("Failed to CreateVolume %s: %v", volumePath, err)
@@ -188,11 +188,11 @@ func (cs *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-        edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeID.Segment, cs.Logger)
-        if err != nil {
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeID.Segment, cs.Logger)
+	if err != nil {
 		l.WithField("func", "InitEdgeFS()").Errorf("Failed to get EdgeFS instance, %s", err)
 		return nil, status.Error(codes.Internal, err.Error())
-        }
+	}
 
 	// If the volume is not found, then we can return OK
 	/*
