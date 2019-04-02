@@ -157,10 +157,10 @@ func (edgefs *EdgeFS) CreateNfsVolume(csiVolumeID string, size int, options map[
 	}
 
 	l.Infof("ClusterData: '%+v'", clusterData)
-	//try to find pointer to Edgefs service by specified volumeID
 
+	//Try to find pointer to Edgefs service by specified volumeID
 	var serviceData *ServiceData
-	if (len(volumeID.GetServiceName()) > 0 ) {
+	if len(volumeID.GetServiceName()) > 0 {
 		serviceData, err = clusterData.FindServiceDataByServiceName(volumeID.GetServiceName())
 		l.Infof("ServiceData: '%+v'", serviceData)
 		if err != nil {
@@ -171,19 +171,31 @@ func (edgefs *EdgeFS) CreateNfsVolume(csiVolumeID string, size int, options map[
 		_, err := serviceData.GetEdgefsVolume(volumeID)
 		if err == nil {
 			//Volume related to VolumeID already exist. Return the current one
-	                return volumeID.GetCSIVolumeID(), nil
+			return volumeID.GetCSIVolumeID(), nil
 		}
 	} else {
-		// find apropriate service to serve
-                serviceData, err = clusterData.FindApropriateServiceData(edgefs.GetClusterConfig().ServiceBalancerPolicy)
-                l.Infof("Appropriate serviceData: '%+v'", serviceData)
-                if err != nil {
-                        l.Errorf("Appropriate serviceData selection failed: %+v", err)
-                        return "", err
-                }
+		//Check volume already exist in ClusterData
+		serviceData, err = clusterData.FindServiceDataByVolumeID(volumeID)
+		// Volume volumeID already exist in service ServiceData
+		if err == nil {
+			if serviceData == nil {
+				l.Errorf("serviceData pointer is nil for volume %s", volumeID.GetCSIVolumeID())
+				return "", err
+			}
+			volumeID.SetServiceName(serviceData.GetService().GetName())
+			return volumeID.GetCSIVolumeID(), nil
+		}
 
-                // assign appropriate service name to VolumeID
-                volumeID.SetServiceName(serviceData.GetService().GetName())
+		// find apropriate service to serve
+		serviceData, err = clusterData.FindApropriateServiceData(edgefs.GetClusterConfig().ServiceBalancerPolicy)
+		l.Infof("Appropriate serviceData: '%+v'", serviceData)
+		if err != nil {
+			l.Errorf("Appropriate serviceData selection failed: %+v", err)
+			return "", err
+		}
+
+		// assign appropriate service name to VolumeID
+		volumeID.SetServiceName(serviceData.GetService().GetName())
 	}
 
 	// check tenant existance in Edgefs cluster
@@ -226,9 +238,9 @@ func (edgefs *EdgeFS) DeleteNfsVolume(volumeID *NfsVolumeId) (err error) {
 	l := edgefs.logger.WithField("func", "DeleteNfsVolume()")
 
 	if volumeID == nil {
-                err = fmt.Errorf("pointer volumeID to NfsVolumeId is null")
-                l.Errorf(err.Error())
-                return err
+		err = fmt.Errorf("pointer volumeID to NfsVolumeId is null")
+		l.Errorf(err.Error())
+		return err
 	}
 
 	// check cluster existance in Edgefs cluster
@@ -311,34 +323,47 @@ func (edgefs *EdgeFS) CreateIscsiVolume(name, sourceSnapshot string, size int64,
 	}
 
 	l.Infof("ClusterData: '%+v'", clusterData)
-	//try to find pointer to Edgefs service by specified volumeID
 
-        var serviceData *ServiceData
-        if (len(volumeID.GetServiceName()) > 0 ) {
-                serviceData, err = clusterData.FindServiceDataByServiceName(volumeID.GetServiceName())
-                l.Infof("ServiceData: '%+v'", serviceData)
-                if err != nil {
-                        l.Errorf("Couldn't find service by service name %s : %v", volumeID.GetServiceName(), err)
-                        return "", err
-                }
+	//Try to find pointer to Edgefs service by specified volumeID
+	var serviceData *ServiceData
+	if len(volumeID.GetServiceName()) > 0 {
+		serviceData, err = clusterData.FindServiceDataByServiceName(volumeID.GetServiceName())
+		l.Infof("ServiceData: '%+v'", serviceData)
+		if err != nil {
+			l.Errorf("Couldn't find service by service name %s : %v", volumeID.GetServiceName(), err)
+			return "", err
+		}
 
-                _, err := serviceData.GetEdgefsVolume(volumeID)
-                if err == nil {
-                        //Volume related to VolumeID already exist. Return the current one
-                        return volumeID.GetCSIVolumeID(), nil
-                }
-        } else {
-                // find apropriate service to serve
-                serviceData, err = clusterData.FindApropriateServiceData(edgefs.GetClusterConfig().ServiceBalancerPolicy)
-                l.Infof("Appropriate serviceData: '%+v'", serviceData)
-                if err != nil {
-                        l.Errorf("Appropriate serviceData selection failed: %+v", err)
-                        return "", err
-                }
+		_, err := serviceData.GetEdgefsVolume(volumeID)
+		if err == nil {
+			//Volume related to VolumeID already exist. Return the current one
+			return volumeID.GetCSIVolumeID(), nil
+		}
+	} else {
 
-                // assign appropriate service name to VolumeID
-                volumeID.SetServiceName(serviceData.GetService().GetName())
-        }
+		//Check volume already exist in ClusterData
+		serviceData, err = clusterData.FindServiceDataByVolumeID(volumeID)
+		// Volume volumeID already exist in service ServiceData
+		if err == nil {
+			if serviceData == nil {
+				l.Errorf("serviceData pointer is nil for volume %s", volumeID.GetCSIVolumeID())
+				return "", err
+			}
+			volumeID.SetServiceName(serviceData.GetService().GetName())
+			return volumeID.GetCSIVolumeID(), nil
+		}
+
+		// find apropriate service to serve
+		serviceData, err = clusterData.FindApropriateServiceData(edgefs.GetClusterConfig().ServiceBalancerPolicy)
+		l.Infof("Appropriate serviceData: '%+v'", serviceData)
+		if err != nil {
+			l.Errorf("Appropriate serviceData selection failed: %+v", err)
+			return "", err
+		}
+
+		// assign appropriate service name to VolumeID
+		volumeID.SetServiceName(serviceData.GetService().GetName())
+	}
 
 	//Clone from source snapshot if defined
 	volumeIsCloned := false
@@ -414,9 +439,9 @@ func (edgefs *EdgeFS) DeleteIscsiVolume(volumeID *IscsiVolumeId) (err error) {
 
 	if volumeID == nil {
 		err = fmt.Errorf("pointer volumeID to IscsiVolumeId is null")
-                l.Errorf(err.Error())
-                return err
-        }
+		l.Errorf(err.Error())
+		return err
+	}
 
 	// check cluster existance in Edgefs cluster
 	if !edgefs.IsClusterExists(volumeID.Cluster) {
