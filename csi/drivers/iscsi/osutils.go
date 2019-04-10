@@ -10,22 +10,25 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	logrus "github.com/sirupsen/logrus"
 	"github.com/cenkalti/backoff"
+	logrus "github.com/sirupsen/logrus"
 )
 
 const iSCSIErrNoObjsFound = 21
 const iSCSIDeviceDiscoveryTimeoutSecs = 90
 const multipathDeviceDiscoveryTimeoutSecs = 90
+const defaultFormatBlockSize = 4096
 
 var xtermControlRegex = regexp.MustCompile(`\x1B\[[0-9;]*[a-zA-Z]`)
 var pidRunningRegex = regexp.MustCompile(`pid \d+ running`)
 var pidRegex = regexp.MustCompile(`^\d+$`)
 var chrootPathPrefix string
 var log *logrus.Entry
+var loginMutex sync.Mutex
 
 func init() {
 	if os.Getenv("DOCKER_PLUGIN_MODE") != "" {
@@ -63,6 +66,7 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 	var iscsiInterface = publishInfo.IscsiInterface
 	var fstype = publishInfo.FilesystemType
 	var options = publishInfo.MountOptions
+	var blocksize = publishInfo.BlockSize
 
 	log.WithFields(logrus.Fields{
 		"volume":        name,
@@ -71,6 +75,7 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 		"targetPortals": bkportal,
 		"targetIQN":     targetIQN,
 		"fstype":        fstype,
+		"blocksize":     blocksize,
 	}).Debug("Publishing iSCSI volume.")
 
 	if ISCSISupported() == false {
@@ -145,7 +150,7 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 	existingFstype := deviceInfo.Filesystem
 	if existingFstype == "" {
 		log.WithFields(logrus.Fields{"volume": name, "fstype": fstype}).Debug("Formatting LUN.")
-		err := formatVolume(devicePath, fstype)
+		err := formatVolume(devicePath, fstype, blocksize)
 		if err != nil {
 			return fmt.Errorf("error formatting LUN %s, device %s: %v", name, deviceToUse, err)
 		}
@@ -661,7 +666,7 @@ func PrepareDeviceForRemoval(lunID int, iSCSINodeName string) {
 // PrepareDeviceAtMountPathForRemoval informs Linux that a device will be removed.
 func PrepareDeviceAtMountPathForRemoval(mountpoint string, unmount bool, logger *logrus.Entry) error {
 
-        log = logger.WithField("cmp", "ISCSIUtils")
+	log = logger.WithField("cmp", "ISCSIUtils")
 	fields := logrus.Fields{"mountpoint": mountpoint}
 	log.WithFields(fields).Debug(">>>> osutils.PrepareDeviceAtMountPathForRemoval")
 	defer log.WithFields(fields).Debug("<<<< osutils.PrepareDeviceAtMountPathForRemoval")
@@ -1420,34 +1425,44 @@ func getFSType(device string) string {
 }
 
 // formatVolume creates a filesystem for the supplied device of the supplied type.
-func formatVolume(device, fstype string) error {
+func formatVolume(device, fstype string, blockSize int) error {
 
 	logFields := logrus.Fields{"device": device, "fsType": fstype}
 	log.WithFields(logFields).Debug(">>>> osutils.formatVolume")
 	defer log.WithFields(logFields).Debug("<<<< osutils.formatVolume")
 
+	start := time.Now()
 	maxDuration := 30 * time.Second
+
+	if blockSize == 0 {
+		blockSize = defaultFormatBlockSize
+	}
 
 	formatVolume := func() error {
 
 		var err error
-
+		log.Infof("Trying to format %s via %s", device, fstype)
+		blockSizeValue := fmt.Sprintf("%d", blockSize)
 		switch fstype {
 		case "xfs":
-			_, err = execCommand("mkfs.xfs", "-f", device)
+			blockSizeValue = fmt.Sprintf("size=%d", blockSize)
+			_, err = execCommand("mkfs.xfs", "-b", blockSizeValue, "-K", "-f", device)
 		case "ext3":
-			_, err = execCommand("mkfs.ext3", "-F", device)
+			_, err = execCommand("mkfs.ext3", "-b", blockSizeValue, "-E", "nodiscard", "-F", device)
 		case "ext4":
-			_, err = execCommand("mkfs.ext4", "-F", device)
+			_, err = execCommand("mkfs.ext4", "-b", blockSizeValue, "-E", "nodiscard", "-F", device)
 		default:
 			return fmt.Errorf("unsupported file system type: %s", fstype)
 		}
 
+		if err != nil {
+			log.Errorf("Formating error %s", err)
+		}
 		return err
 	}
 
 	formatNotify := func(err error, duration time.Duration) {
-		log.WithField("increment", duration).Debug("Format failed, retrying.")
+		log.WithField("increment", duration).Info("Format failed, retrying.")
 	}
 
 	formatBackoff := backoff.NewExponentialBackOff()
@@ -1458,11 +1473,11 @@ func formatVolume(device, fstype string) error {
 
 	// Run the check/rescan using an exponential backoff
 	if err := backoff.RetryNotify(formatVolume, formatBackoff, formatNotify); err != nil {
-		log.Warnf("Could not format device after %3.2f seconds.", maxDuration.Seconds())
+		log.Infof("Could not format device after %3.2f seconds.", maxDuration.Seconds())
 		return err
 	}
-
-	log.WithFields(logFields).Info("Device formatted.")
+	elapsed := time.Since(start)
+	log.WithFields(logFields).Infof("Device formatted in %s", elapsed)
 	return nil
 }
 
@@ -1635,10 +1650,13 @@ func EnsureISCSISession(hostDataIP string) error {
 			if target.TargetName == targetName {
 
 				// Log in to target
+				loginMutex.Lock()
 				err = loginISCSITarget(target.TargetName, target.PortalIP)
 				if err != nil {
+					loginMutex.Unlock()
 					return fmt.Errorf("login to iSCSI target failed: %v", err)
 				}
+				loginMutex.Unlock()
 			}
 		}
 
