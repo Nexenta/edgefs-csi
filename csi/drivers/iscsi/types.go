@@ -27,5 +27,6 @@ type VolumePublishInfo struct {
 	UseCHAP        bool     `json:"useCHAP,omitempty"`
 	SharedTarget   bool     `json:"sharedTarget,omitempty"`
 	DevicePath     string   `json:"devicePath,omitempty"`
+	BlockSize      int      `json:"blocksize,omitempty"`
 	VolumeAccessInfo
 }

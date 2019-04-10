@@ -120,7 +120,7 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	if !notMnt {
-		l.Warning("Skipped to mount volume %s. Error: %s", targetPath, err)
+		l.Warningf("Skipped to mount volume %s. Error: %s", targetPath, err)
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
