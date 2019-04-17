@@ -66,7 +66,6 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 	var iscsiInterface = publishInfo.IscsiInterface
 	var fstype = publishInfo.FilesystemType
 	var options = publishInfo.MountOptions
-	var blocksize = publishInfo.BlockSize
 
 	log.WithFields(logrus.Fields{
 		"volume":        name,
@@ -75,7 +74,6 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 		"targetPortals": bkportal,
 		"targetIQN":     targetIQN,
 		"fstype":        fstype,
-		"blocksize":     blocksize,
 	}).Debug("Publishing iSCSI volume.")
 
 	if ISCSISupported() == false {
@@ -150,7 +148,7 @@ func AttachISCSIVolume(name, mountpoint string, publishInfo *VolumePublishInfo, 
 	existingFstype := deviceInfo.Filesystem
 	if existingFstype == "" {
 		log.WithFields(logrus.Fields{"volume": name, "fstype": fstype}).Debug("Formatting LUN.")
-		err := formatVolume(devicePath, fstype, blocksize)
+		err := formatVolume(devicePath, fstype)
 		if err != nil {
 			return fmt.Errorf("error formatting LUN %s, device %s: %v", name, deviceToUse, err)
 		}
@@ -1425,7 +1423,7 @@ func getFSType(device string) string {
 }
 
 // formatVolume creates a filesystem for the supplied device of the supplied type.
-func formatVolume(device, fstype string, blockSize int) error {
+func formatVolume(device, fstype string) error {
 
 	logFields := logrus.Fields{"device": device, "fsType": fstype}
 	log.WithFields(logFields).Debug(">>>> osutils.formatVolume")
@@ -1434,23 +1432,17 @@ func formatVolume(device, fstype string, blockSize int) error {
 	start := time.Now()
 	maxDuration := 30 * time.Second
 
-	if blockSize == 0 {
-		blockSize = defaultFormatBlockSize
-	}
-
 	formatVolume := func() error {
 
 		var err error
 		log.Infof("Trying to format %s via %s", device, fstype)
-		blockSizeValue := fmt.Sprintf("%d", blockSize)
 		switch fstype {
 		case "xfs":
-			blockSizeValue = fmt.Sprintf("size=%d", blockSize)
-			_, err = execCommand("mkfs.xfs", "-b", blockSizeValue, "-K", "-f", device)
+			_, err = execCommand("mkfs.xfs", "-K", "-f", device)
 		case "ext3":
-			_, err = execCommand("mkfs.ext3", "-b", blockSizeValue, "-E", "nodiscard", "-F", device)
+			_, err = execCommand("mkfs.ext3", "-E", "nodiscard", "-F", device)
 		case "ext4":
-			_, err = execCommand("mkfs.ext4", "-b", blockSizeValue, "-E", "nodiscard", "-F", device)
+			_, err = execCommand("mkfs.ext4", "-E", "nodiscard", "-F", device)
 		default:
 			return fmt.Errorf("unsupported file system type: %s", fstype)
 		}
