@@ -1,8 +1,8 @@
 PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
-REGISTRY=edgefs
-IMAGE_TAG=latest
+REGISTRY ?= edgefs
+IMAGE_TAG ?= latest
 
 .PHONY: all csi
 
