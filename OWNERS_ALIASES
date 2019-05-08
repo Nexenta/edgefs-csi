@@ -1,6 +1,9 @@
 aliases:
-- dyusupov
-best-approvers:
-- dyusupov
-best-reviewers:
-- dyusupov
+  best-approvers:
+  - dyusupov
+  - bosher
+  - SergeyKaydalov
+  best-reviewers:
+  - dyusupov
+  - bosher
+  - SergeyKaydalov

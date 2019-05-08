@@ -1,1 +1,1 @@
-buildPack: go
+buildPack: docker
