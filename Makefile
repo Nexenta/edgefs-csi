@@ -33,6 +33,7 @@ push-container: build-container
 
 skaffold:
 	echo "        EDGEFS_IMAGE: $(REGISTRY)/edgefs:$(EDGEFS_VERSION)" >> skaffold.yaml
+	echo "  insecureRegistries: [\"$(DOCKER_REGISTRY)\"]" >> skaffold.yaml
 	export VERSION=$(EDGEFS_VERSION) && skaffold build --insecure-registry=$(DOCKER_REGISTRY) -f skaffold.yaml
 	git checkout skaffold.yaml
 

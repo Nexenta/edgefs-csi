@@ -1,6 +1,9 @@
 apiVersion: skaffold/v1beta8
 kind: Config
 build:
+  tagPolicy:
+    envTemplate:
+      template: '{{.DOCKER_REGISTRY}}/nexenta/edgefs-csi:{{.VERSION}}'
   artifacts:
   - image: nexenta/edgefs-csi
     context: .
