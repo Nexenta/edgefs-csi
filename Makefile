@@ -32,6 +32,7 @@ push-container: build-container
 	docker push $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
 
 skaffold:
+	@echo "Building: $(DOCKER_REGISTRY)/$(PLUGIN_NAME):$(EDGEFS_VERSION)"
 	export VERSION=$(EDGEFS_VERSION) && skaffold build -f skaffold.yaml
 
 test:
