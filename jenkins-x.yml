@@ -20,3 +20,5 @@ pipelineConfig:
         steps:
           - sh: make build-container
             name: container-build
+      promote:
+        replace: true

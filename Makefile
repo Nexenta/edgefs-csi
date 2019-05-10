@@ -2,7 +2,7 @@ PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
 REGISTRY ?= $(DOCKER_REGISTRY)/nexenta
-EDGEFS_VERSION ?= latest
+EDGEFS_VERSION ?= 1.1.1
 
 .PHONY: all csi
 
