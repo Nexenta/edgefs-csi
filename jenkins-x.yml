@@ -19,3 +19,9 @@ pipelineConfig:
             name: skaffold-version
           - sh: make skaffold
             name: container-build
+    release:
+      build:
+        replace: true
+        steps:
+          - sh: make skaffold
+            name: container-build
