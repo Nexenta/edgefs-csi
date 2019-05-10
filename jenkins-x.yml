@@ -14,9 +14,6 @@ pipelineConfig:
     pullRequest:
       postBuild:
         replace: true
-        steps:
-          - sh: make build-container
-            name: container-build
     release:
       build:
         replace: true
