@@ -9,6 +9,3 @@ build:
       buildArgs:
         REGISTRY: '{{.DOCKER_REGISTRY}}/nexenta'
         IMAGE_TAG: '{{.VERSION}}'
-#  tagPolicy:
-#    envTemplate:
-#      template: '{{.DOCKER_REGISTRY}}/nexenta/edgefs-csi:{{.VERSION}}'
