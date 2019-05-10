@@ -24,12 +24,15 @@ csi: .get
 	# static build
 	GOPATH=`pwd` CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(PLUGIN_NAME) main.go
 
-build-container:
+build-container: csi
 	docker build --build-arg EDGEFS_IMAGE=$(REGISTRY)/edgefs:$(EDGEFS_VERSION) -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
 
 push-container: build-container
 	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
 	docker push $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+
+skaffold:
+	echo "        EDGEFS_IMAGE: $(REGISTRY)/edgefs:$(EDGEFS_VERSION)" >> skaffold.yaml
 
 test:
 	GOPATH=`pwd` go test -count=1 -v ./csi -run TestAttachISCSIVolume #$TestAttachISCSIVolume #TestGetISCSIDevices

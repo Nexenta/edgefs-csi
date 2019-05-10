@@ -18,7 +18,7 @@ pipelineConfig:
       build:
         replace: true
         steps:
-          - sh: make build-container
+          - sh: make skaffold
             name: container-build
       promote:
         replace: true

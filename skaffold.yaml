@@ -1,0 +1,9 @@
+apiVersion: skaffold/v1beta8
+kind: Config
+build:
+  artifacts:
+  - image: nexenta/edgefs-csi
+    context: .
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
