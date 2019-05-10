@@ -1,6 +1,5 @@
-ARG REGISTRY=edgefs
-ARG IMAGE_TAG=latest
-FROM ${REGISTRY}/edgefs:${IMAGE_TAG} as builder
+ARG EDGEFS_IMAGE=edgefs/edgefs:latest
+FROM ${EDGEFS_IMAGE} as builder
 
 #FROM centos:centos6
 #FROM ubuntu:18.10
