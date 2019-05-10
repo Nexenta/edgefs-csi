@@ -1,8 +1,8 @@
 PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
-REGISTRY ?= edgefs
-IMAGE_TAG ?= latest
+REGISTRY ?= $(DOCKER_REGISTRY)/nexenta
+EDGEFS_VERSION ?= 1.1.1
 
 .PHONY: all csi
 
@@ -25,11 +25,16 @@ csi: .get
 	GOPATH=`pwd` CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(PLUGIN_NAME) main.go
 
 build-container: csi
-	docker build -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
+	docker build --build-arg EDGEFS_IMAGE=$(REGISTRY)/edgefs:$(EDGEFS_VERSION) -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
 
 push-container: build-container
-	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
-	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+
+skaffold:
+	echo "        EDGEFS_IMAGE: $(REGISTRY)/edgefs:$(EDGEFS_VERSION)" >> skaffold.yaml
+	export VERSION=$(EDGEFS_VERSION) && skaffold build --insecure-registry=$(DOCKER_REGISTRY) -f skaffold.yaml
+	git checkout skaffold.yaml
 
 test:
 	GOPATH=`pwd` go test -count=1 -v ./csi -run TestAttachISCSIVolume #$TestAttachISCSIVolume #TestGetISCSIDevices

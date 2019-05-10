@@ -1,1 +1,24 @@
 buildPack: docker
+pipelineConfig:
+  agent: {}
+  env:
+  - name: GIT_COMMITTER_EMAIL
+    value: edgefs.bot@gmail.com
+  - name: GIT_COMMITTER_NAME
+    value: edgefs-bot
+  - name: GIT_AUTHOR_EMAIL
+    value: edgefs.bot@gmail.com
+  - name: GIT_AUTHOR_NAME
+    value: edgefs-bot
+  pipelines:
+    pullRequest:
+      postBuild:
+        replace: true
+    release:
+      build:
+        replace: true
+        steps:
+          - sh: make skaffold
+            name: container-build
+      promote:
+        replace: true
