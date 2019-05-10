@@ -1,6 +1,5 @@
-ARG REGISTRY=edgefs
-ARG IMAGE_TAG=latest
-FROM 10.105.115.0:5000/nexenta/edgefs:0.0.0-SNAPSHOT-PR-189-5 as builder
+ARG EDGEFS_IMAGE=edgefs/edgefs:latest
+FROM ${EDGEFS_IMAGE} as builder
 
 #FROM centos:centos6
 #FROM ubuntu:18.10
