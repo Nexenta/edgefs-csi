@@ -33,7 +33,8 @@ push-container: build-container
 
 skaffold:
 	echo "        EDGEFS_IMAGE: $(REGISTRY)/edgefs:$(EDGEFS_VERSION)" >> skaffold.yaml
-	export VERSION=$(EDGEFS_VERSION) && skaffold build -f skaffold.yaml
+	export VERSION=$(EDGEFS_VERSION) && skaffold build --insecure-registry=$(DOCKER_REGISTRY) -f skaffold.yaml
+	git checkout skaffold.yaml
 
 test:
 	GOPATH=`pwd` go test -count=1 -v ./csi -run TestAttachISCSIVolume #$TestAttachISCSIVolume #TestGetISCSIDevices
