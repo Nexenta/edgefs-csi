@@ -1,8 +1,8 @@
 PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
-REGISTRY ?= edgefs
-IMAGE_TAG ?= latest
+DOCKER_REGISTRY ?= edgefs
+EDGEFS_VERSION ?= latest
 
 .PHONY: all csi
 
@@ -28,8 +28,11 @@ build-container: csi
 	docker build -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
 
 push-container: build-container
-	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
-	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	docker tag  $(IMAGE_NAME) $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+	docker push $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+
+skaffold:
+	export VERSION=$(EDGEFS_VERSION) && skaffold build -f skaffold.yaml
 
 test:
 	GOPATH=`pwd` go test -count=1 -v ./csi -run TestAttachISCSIVolume #$TestAttachISCSIVolume #TestGetISCSIDevices
