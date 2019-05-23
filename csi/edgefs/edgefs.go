@@ -88,10 +88,10 @@ func InitEdgeFS(config *EdgefsClusterConfig, backendType string, segment string,
 
 	// No address information for k8s Edgefs cluster
 	if config.EdgefsProxyAddr == "" {
-		isClusterExists, _ := DetectEdgefsK8sCluster(segment, config)
+		err := DetectEdgefsK8sCluster(segment, config)
 
-		if !isClusterExists {
-			return nil, fmt.Errorf("No EdgeFS cluster's services has been found")
+		if err != nil {
+			return nil, fmt.Errorf("InitEdgeFS failed. Reason: %s", err)
 		}
 	}
 

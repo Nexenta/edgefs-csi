@@ -104,9 +104,10 @@ func homeDir() string {
 }
 
 /* Will check k8s edgefs cluster existance and will update EdgefsClusterConfig information*/
-func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (clusterExists bool, err error) {
+func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (err error) {
 	var kubeconfig string
 	var restConfig *rest.Config
+
 	if config.K8sClientInCluster {
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
@@ -119,19 +120,19 @@ func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (cluste
 		// use the current context in kubeconfig
 		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
 	// create the clientset
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	svcs, err := clientset.CoreV1().Services(segment).List(metav1.ListOptions{})
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	for _, svc := range svcs.Items {
@@ -140,10 +141,10 @@ func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (cluste
 
 		if strings.HasPrefix(serviceName, config.K8sEdgefsMgmtPrefix) {
 			config.EdgefsProxyAddr = serviceClusterIP
-			return true, err
+			return nil
 		}
 	}
-	return false, err
+	return fmt.Errorf("No Kubernetes' Edgefs service found in '%s' namespace", segment)
 }
 
 func GetEdgefsK8sClusterServices(serviceType, k8sEdgefsNamespace string, k8sClientInCluster bool) (services []IK8SEdgefsService, err error) {
