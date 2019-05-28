@@ -10,4 +10,3 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        EDGEFS_IMAGE: 10.105.115.0:5000/nexenta/edgefs:1.1.25
