@@ -28,10 +28,10 @@ import (
 	"fmt" //"strings"
 	"time"
 
-	"../../../../grpc-efsproxy/cluster"
-	"../../../../grpc-efsproxy/service"
-	"../../../../grpc-efsproxy/snapshot"
-	"../../../../grpc-efsproxy/tenant"
+	"github.com/Nexenta/edgefs-csi/grpc-efsproxy/cluster"
+	"github.com/Nexenta/edgefs-csi/grpc-efsproxy/service"
+	"github.com/Nexenta/edgefs-csi/grpc-efsproxy/snapshot"
+	"github.com/Nexenta/edgefs-csi/grpc-efsproxy/tenant"
 	logrus "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -394,9 +394,9 @@ func (provider *EdgeFSProvider) ServeObject(serviceName, k8sServiceName, k8sName
 		Object:       volume.Object,
 		VolumeSettings: &service.VolumeSettings{
 			IsClonedObject: settings.IsClonedObject,
-			VolumeSize: settings.VolumeSize,
-			ChunkSize:  settings.ChunkSize,
-			BlockSize:  settings.BlockSize,
+			VolumeSize:     settings.VolumeSize,
+			ChunkSize:      settings.ChunkSize,
+			BlockSize:      settings.BlockSize,
 		},
 	}
 	l.Infof("request: '%+v'", *request)

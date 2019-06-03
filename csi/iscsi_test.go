@@ -1,9 +1,10 @@
 package csi
 
 import (
-	"./drivers/iscsi"
 	"fmt"
 	"testing"
+
+	"github.com/Nexenta/edgefs-csi/csi/drivers/iscsi"
 )
 
 const (
@@ -55,9 +56,9 @@ func TestDetachISCSIVolume(t *testing.T) {
 
 	err = iscsi.PrepareDeviceAtMountPathForRemoval(targetpath, true)
 	if err != nil {
-                fmt.Printf("PrepareDeviceAtMountPathForRemoval error: %s\n", err)
-                return
-        }
+		fmt.Printf("PrepareDeviceAtMountPathForRemoval error: %s\n", err)
+		return
+	}
 
 	fmt.Printf("Detach done")
 }
@@ -65,20 +66,20 @@ func TestDetachISCSIVolume(t *testing.T) {
 func TestGetISCSIDevices(t *testing.T) {
 	dev, refCount, err := iscsi.GetDeviceNameFromMount(targetpath)
 	if err != nil {
-                fmt.Printf("GetDeviceNameFromMount error: %s\n", err)
-                return
-        }
+		fmt.Printf("GetDeviceNameFromMount error: %s\n", err)
+		return
+	}
 	fmt.Printf("GetDeviceNameFromMount device: %s, %d\n", dev, refCount)
 
 	devices, err := iscsi.GetMountedISCSIDevices()
 	if err != nil {
-                fmt.Printf("GetMountedISCSIDevices error: %s\n", err)
-                return
-        }
+		fmt.Printf("GetMountedISCSIDevices error: %s\n", err)
+		return
+	}
 
 	fmt.Printf("Mounted devices:\n")
 	for _, devInfo := range devices {
-		 fmt.Printf("%+v\n", *devInfo)
+		fmt.Printf("%+v\n", *devInfo)
 	}
 
 }

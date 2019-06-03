@@ -28,7 +28,7 @@ import (
 	"strconv"
 	"strings"
 
-	client "../../edgefs"
+	client "github.com/Nexenta/edgefs-csi/csi/edgefs"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/pborman/uuid"

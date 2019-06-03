@@ -25,7 +25,8 @@ package edgefs
 
 import (
 	"fmt"
-	"../errors"
+
+	"github.com/Nexenta/edgefs-csi/csi/errors"
 )
 
 const (
@@ -99,7 +100,7 @@ func (es *EdgefsService) String() string {
 type EdgefsIscsiService struct {
 	EdgefsService
 	/* additional Edgefs ISCSI service props */
-	TargetIqn   string
+	TargetIqn string
 }
 
 //IServiceData interface to operate different service types

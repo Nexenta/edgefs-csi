@@ -32,7 +32,7 @@ import (
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	logrus "github.com/sirupsen/logrus"
 
-	"./csi"
+	"github.com/Nexenta/edgefs-csi/csi"
 	"github.com/spf13/cobra"
 )
 

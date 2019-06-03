@@ -57,4 +57,3 @@ func ParseRole(from string) (Role, error) {
 		RoleAll,
 	)
 }
-

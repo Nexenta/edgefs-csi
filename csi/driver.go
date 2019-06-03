@@ -24,8 +24,6 @@
 package csi
 
 import (
-	iscsi "./drivers/iscsi"
-	nfs "./drivers/nfs"
 	"context"
 	"fmt"
 	"net"
@@ -33,6 +31,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+
+	iscsi "github.com/Nexenta/edgefs-csi/csi/drivers/iscsi"
+	nfs "github.com/Nexenta/edgefs-csi/csi/drivers/nfs"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	logrus "github.com/sirupsen/logrus"

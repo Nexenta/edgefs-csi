@@ -24,7 +24,7 @@
 package edgefs
 
 import (
-	errors "../errors"
+	errors "github.com/Nexenta/edgefs-csi/csi/errors"
 
 	"fmt"
 	"math/rand"
