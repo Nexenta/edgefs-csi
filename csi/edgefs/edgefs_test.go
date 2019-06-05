@@ -3,7 +3,7 @@ package edgefs_test
 import (
 	"fmt"
 	"testing"
-	"../csi"
+	"github.com/Nexenta/edgefs-csi/csi"
 )
 
 func ListVolumes(e csi.IEdgeFS) {

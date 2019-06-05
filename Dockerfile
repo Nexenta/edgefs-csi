@@ -1,6 +1,3 @@
-ARG EDGEFS_IMAGE=edgefs/edgefs:latest
-FROM ${EDGEFS_IMAGE} as builder
-
 #FROM centos:centos6
 #FROM ubuntu:18.10
 FROM alpine:3.2
@@ -39,8 +36,8 @@ ADD chroot-host-wrapper.sh /edgefs
 RUN mkdir -p /etc/
 RUN mkdir -p /config/
 
-COPY --from=builder /opt/nedge/sbin/edgefs-csi /
-COPY --from=builder /opt/nedge/sbin/csc /
+COPY edgefs-csi /
+COPY csc /
 
 RUN chmod 777 /edgefs/chroot-host-wrapper.sh
 RUN    ln -s /edgefs/chroot-host-wrapper.sh /edgefs/blkid \

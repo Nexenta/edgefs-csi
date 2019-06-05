@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"strconv"
 
-	client "../../edgefs"
+	client "github.com/Nexenta/edgefs-csi/csi/edgefs"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
