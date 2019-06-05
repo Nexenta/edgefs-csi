@@ -35,36 +35,38 @@ import (
 )
 
 const (
-	edgefsConfigFolder                  = "/config"
-	defaultUsername              string = "admin"
-	defaultPassword              string = "admin"
-	defaultNFSMountOptions       string = "vers=3,tcp"
-	defaultK8sEdgefsNamespace    string = "rook-edgefs"
-	defaultK8sEdgefsMgmtPrefix   string = "edgefs-mgmt"
-	defaultK8sClientInCluster    bool   = true
-	defaultFsType                string = "ext4"
-	defaultServiceBalancerPolicy string = "minexportspolicy"
-	defaultChunkSize             int32  = 16384
-	defaultBlockSize             int32  = 4096
+	edgefsConfigFolder                   = "/config"
+	defaultUsername               string = "admin"
+	defaultPassword               string = "admin"
+	defaultNFSMountOptions        string = "vers=3,tcp"
+	defaultK8sEdgefsNamespace     string = "rook-edgefs"
+	defaultK8sEdgefsMgmtPrefix    string = "rook-edgefs-mgr"
+	defaultK8sClientInCluster     bool   = true
+	defaultFsType                 string = "ext4"
+	defaultServiceBalancerPolicy  string = "minexportspolicy"
+	defaultChunkSize              int32  = 16384
+	defaultBlockSize              int32  = 4096
+	defaultEdgefsSegmentNodeLabel string = "edgefs.io/segment"
 )
 
 type EdgefsClusterConfig struct {
-	Name                  string
-	K8sClientInCluster    bool
-	EdgefsProxyAddr       string
-	EdgefsProxyPort       string
-	K8sEdgefsNamespaces   []string `yaml:"k8sEdgefsNamespaces"`
-	K8sEdgefsMgmtPrefix   string   `yaml:"k8sEdgefsMgmtPrefix"`
-	Username              string   `yaml:"username"`
-	Password              string   `yaml:"password"`
-	Service               string   `yaml:"service"`
-	Cluster               string   `yaml:"cluster"`
-	Tenant                string   `yaml:"tenant"`
-	Bucket                string   `yaml:"bucket"` // optional bucket name for ISCSI volume creation
-	ForceVolumeDeletion   bool     `yaml:"forceVolumeDeletion"`
-	ServiceFilter         string   `yaml:"serviceFilter"`
-	ServiceBalancerPolicy string   `yaml:"serviceBalancerPolicy"`
-	MountOptions          string   `yaml:"mountOptions"`
+	Name                   string
+	K8sClientInCluster     bool
+	EdgefsProxyAddr        string
+	EdgefsProxyPort        string
+	K8sEdgefsNamespaces    []string `yaml:"k8sEdgefsNamespaces"`
+	K8sEdgefsMgmtPrefix    string   `yaml:"k8sEdgefsMgmtPrefix"`
+	Username               string   `yaml:"username"`
+	Password               string   `yaml:"password"`
+	Service                string   `yaml:"service"`
+	Cluster                string   `yaml:"cluster"`
+	Tenant                 string   `yaml:"tenant"`
+	Bucket                 string   `yaml:"bucket"` // optional bucket name for ISCSI volume creation
+	ForceVolumeDeletion    bool     `yaml:"forceVolumeDeletion"`
+	ServiceFilter          string   `yaml:"serviceFilter"`
+	ServiceBalancerPolicy  string   `yaml:"serviceBalancerPolicy"`
+	MountOptions           string   `yaml:"mountOptions"`
+	EdgefsSegmentNodeLabel string   `yaml:"edgefsSegmentNodeLabel"`
 
 	//ISCSI specific options
 	FsType    string `yaml:"fsType"`
@@ -204,6 +206,10 @@ func PrepareClusterConfigDefaultValues(config *EdgefsClusterConfig, backendType 
 
 	if len(config.ServiceBalancerPolicy) == 0 {
 		config.ServiceBalancerPolicy = defaultServiceBalancerPolicy
+	}
+
+	if len(config.EdgefsSegmentNodeLabel) == 0 {
+		config.EdgefsSegmentNodeLabel = defaultEdgefsSegmentNodeLabel
 	}
 
 	return nil

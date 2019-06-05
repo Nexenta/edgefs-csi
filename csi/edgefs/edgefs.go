@@ -86,6 +86,7 @@ func InitEdgeFS(config *EdgefsClusterConfig, backendType string, segment string,
 		return nil, err
 	}
 
+	l.Infof("Config: %+v", *config)
 	// No address information for k8s Edgefs cluster
 	if config.EdgefsProxyAddr == "" {
 		err := DetectEdgefsK8sCluster(segment, config)

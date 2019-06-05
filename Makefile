@@ -2,7 +2,7 @@ PLUGIN_NAME=edgefs-csi
 IMAGE_NAME=$(PLUGIN_NAME)
 DOCKER_FILE=Dockerfile
 REGISTRY ?= edgefs
-EDGEFS_VERSION ?= 1.1.40
+LABEL ?= segments
 
 .PHONY: all csi
 
@@ -19,11 +19,11 @@ csi: .get
 	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o $(PLUGIN_NAME) main.go
 
 build-container: csi
-	docker build --build-arg EDGEFS_IMAGE=$(REGISTRY)/edgefs:$(EDGEFS_VERSION) -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
+	docker build  -f $(DOCKER_FILE) -t $(IMAGE_NAME) .
 
 push-container: build-container
-	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
-	docker push $(REGISTRY)/$(IMAGE_NAME):$(EDGEFS_VERSION)
+	docker tag  $(IMAGE_NAME) $(REGISTRY)/$(IMAGE_NAME):$(LABEL)
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(LABEL)
 
 skaffold:
 	# temp hack until skaffold #543 is fixed

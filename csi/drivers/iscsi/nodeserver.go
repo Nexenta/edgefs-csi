@@ -76,7 +76,21 @@ func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeID.Segment, ns.Logger)
+	// Get EdgefsSegment node label, if exists use as volumeID' segment, for dynamic service' placement selection
+	nodeSegmentName, err := client.Getk8sNodeLabel(ns.NodeID, clusterConfig.EdgefsSegmentNodeLabel)
+	if err != nil {
+		l.Errorf("Couldn't get node [%s] label `%s` value. Reason: %s", ns.NodeID, clusterConfig.EdgefsSegmentNodeLabel, err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// force segment assignment in case of existing node labeling
+	volumeSegment := volumeID.Segment
+	if len(strings.TrimSpace(nodeSegmentName)) > 0 {
+		l.Infof("Label `%s` exist for node [%s], set current segment as %s", clusterConfig.EdgefsSegmentNodeLabel, ns.NodeID, nodeSegmentName)
+		volumeSegment = strings.TrimSpace(nodeSegmentName)
+	}
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, volumeSegment, ns.Logger)
 	if err != nil {
 		l.Errorf("Failed to get EdgeFS instance, Error: %+v", err)
 		return nil, status.Error(codes.Internal, err.Error())

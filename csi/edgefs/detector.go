@@ -134,7 +134,6 @@ func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (err er
 	if err != nil {
 		return err
 	}
-
 	for _, svc := range svcs.Items {
 		serviceName := svc.GetName()
 		serviceClusterIP := svc.Spec.ClusterIP
@@ -145,6 +144,34 @@ func DetectEdgefsK8sCluster(segment string, config *EdgefsClusterConfig) (err er
 		}
 	}
 	return fmt.Errorf("No Kubernetes' Edgefs service found in '%s' namespace", segment)
+}
+
+func Getk8sNodeLabel(nodeName, labelName string) (string, error) {
+	var restConfig *rest.Config
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return "", err
+	}
+
+	node, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	if node.Labels == nil {
+		return "", nil
+	}
+
+	if labelValue, ok := node.Labels[labelName]; ok {
+		return labelValue, nil
+	}
+	return "", nil
 }
 
 func GetEdgefsK8sClusterServices(serviceType, k8sEdgefsNamespace string, k8sClientInCluster bool) (services []IK8SEdgefsService, err error) {
