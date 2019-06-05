@@ -393,26 +393,35 @@ func (cs *ControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, "", cs.Logger)
+	// Get default segment value because we no need it to delete snapshot just to InitEdgeFS
+	// TODO: Need to refactor Edgefs initialization
+	segment, err := clusterConfig.GetSegment("")
+	if err != nil {
+		l.WithField("func", "GetSegment()").Warningf("%+v", err)
+	}
+
+	edgefs, err := client.InitEdgeFS(&clusterConfig, client.EdgefsServiceType_ISCSI, segment, cs.Logger)
 	if err != nil {
 		l.Fatalf("Failed to get EdgeFS instance. Error:", err)
 		return nil, err
 	}
 
-	volumePath := req.GetSnapshotId()
-	if volumePath == "" {
-		volumePath = req.GetSourceVolumeId()
+	objectPath := req.GetSnapshotId()
+	if objectPath == "" {
+		objectPath = req.GetSourceVolumeId()
 	}
 
-	volumeParts := strings.Split(volumePath, "@")
-	if len(volumeParts) > 1 {
-		volumePath = volumeParts[0]
+	objectParts := strings.Split(objectPath, "@")
+	snapshotPattern := ""
+	if len(objectParts) > 1 {
+		snapshotPattern = objectPath // snapshot pattern in snapview is objectpath@snap-name
+		objectPath = objectParts[0]  // take path to object only 
 	}
 
 	nextToken := ""
 	//startingToken := req.GetStartingToken()
 	//maxEntries := req.GetMaxEntries()
-	snapshots, err := edgefs.ListObjectSnapshots(volumePath, volumeParts[0])
+	snapshots, err := edgefs.ListObjectSnapshots(objectPath, snapshotPattern)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "ListSnapshots failed: %s", err.Error())
 	}
