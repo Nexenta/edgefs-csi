@@ -1,0 +1,44 @@
+module github.com/Nexenta/edgefs-csi
+
+go 1.12
+
+require (
+	github.com/antonfisher/nested-logrus-formatter v1.0.2
+	github.com/cenkalti/backoff v2.2.1+incompatible
+	github.com/cenkalti/backoff/v3 v3.0.0
+	github.com/container-storage-interface/spec v1.1.0
+	github.com/davecgh/go-spew v1.1.1
+	github.com/gogo/protobuf v1.2.1
+	github.com/golang/protobuf v1.3.1
+	github.com/google/gofuzz v1.0.0
+	github.com/google/uuid v1.1.1
+	github.com/googleapis/gnostic v0.2.0
+	github.com/imdario/mergo v0.3.7
+	github.com/inconshreveable/mousetrap v1.0.0
+	github.com/json-iterator/go v1.1.6
+	github.com/konsorten/go-windows-terminal-sequences v1.0.2
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	github.com/modern-go/reflect2 v1.0.1
+	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
+	github.com/sirupsen/logrus v1.4.2
+	github.com/spf13/cobra v0.0.4
+	github.com/spf13/pflag v1.0.3
+	golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5
+	golang.org/x/net v0.0.0-20190603091049-60506f45cf65
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed
+	golang.org/x/text v0.3.2
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+	google.golang.org/appengine v1.6.0
+	google.golang.org/genproto v0.0.0-20190530194941-fb225487d101
+	google.golang.org/grpc v1.21.1
+	gopkg.in/inf.v0 v0.9.1
+	gopkg.in/yaml.v2 v2.2.2
+	k8s.io/api v0.0.0-20190620084959-7cf5895f2711
+	k8s.io/apimachinery v0.0.0-20190612205821-1799e75a0719
+	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/klog v0.3.2
+	k8s.io/kubernetes v1.14.2
+	k8s.io/utils v0.0.0-20190529001817-6999998975a7
+	sigs.k8s.io/yaml v1.1.0
+)
