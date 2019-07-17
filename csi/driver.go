@@ -24,8 +24,8 @@
 package csi
 
 import (
-	iscsi "./drivers/iscsi"
-	nfs "./drivers/nfs"
+	iscsi "github.com/Nexenta/edgefs-csi/csi/drivers/iscsi"
+	nfs "github.com/Nexenta/edgefs-csi/csi/drivers/nfs"
 	"context"
 	"fmt"
 	"net"

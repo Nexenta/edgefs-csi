@@ -25,7 +25,7 @@ package edgefs
 
 import (
 	"fmt"
-	"../errors"
+	"github.com/Nexenta/edgefs-csi/csi/errors"
 )
 
 const (

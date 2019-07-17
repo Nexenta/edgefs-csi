@@ -1,7 +1,7 @@
 package csi
 
 import (
-	"./drivers/iscsi"
+	"github.com/Nexenta/edgefs-csi/csi/drivers/iscsi"
 	"fmt"
 	"testing"
 )

@@ -27,7 +27,7 @@ import (
 	"os"
 	"strings"
 
-	client "../../edgefs"
+	client "github.com/Nexenta/edgefs-csi/csi/edgefs"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
