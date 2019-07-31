@@ -20,7 +20,7 @@ environment (requires Kubernetes 1.13+)
 For details about configuration and deployment of EdgeFS CSI plugin,
 see Wiki pages:
 
-* [Quick Start Guide](https://github.com/Nexenta/edgefs-csi/wiki/EdgeFS-CSI-Quick-Start-Guide)
+* [Quick Start With Rook EdgeFS](https://rook.io/docs/rook/master/edgefs-csi.html)
 
 ## Troubleshooting
 
