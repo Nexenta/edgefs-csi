@@ -674,13 +674,14 @@ func PrepareDeviceAtMountPathForRemoval(mountpoint string, unmount bool, logger 
 		return err
 	}
 
+	log.Infof("Removal DeviceInfo: %#v", deviceInfo)
 	if unmount {
 		if err := Umount(mountpoint); err != nil {
 			return err
 		}
 	}
 
-	removeSCSIDevice(deviceInfo)
+	//removeSCSIDevice(deviceInfo)
 	return nil
 }
 

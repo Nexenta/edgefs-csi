@@ -213,11 +213,17 @@ func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.NotFound, "Volume not mounted")
 	}
 
-	err = PrepareDeviceAtMountPathForRemoval(req.GetTargetPath(), true, ns.Logger)
+	err = mount.CleanupMountPoint(targetPath, mount.New(""), false)
+        if err != nil {
+                return nil, status.Error(codes.Internal, err.Error())
+        }
+
+	/*
+	err = PrepareDeviceAtMountPathForRemoval(targetPath, true, ns.Logger)
 	if err != nil {
 		l.Warningf("PrepareDeviceAtMountPathForRemoval error status: %s", err)
 	}
-
+	*/
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
