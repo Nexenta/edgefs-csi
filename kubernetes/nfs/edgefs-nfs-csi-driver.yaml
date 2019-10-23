@@ -155,7 +155,7 @@ spec:
         # csi-provisioner: sidecar container that watches Kubernetes PersistentVolumeClaim objects
         # and triggers CreateVolume/DeleteVolume against a CSI endpoint
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v1.0.1
+          image: quay.io/k8scsi/csi-provisioner:v1.1.0
           imagePullPolicy: IfNotPresent
           args:
             - --connection-timeout=25s
@@ -167,7 +167,7 @@ spec:
         # csi-attacher: sidecar container that watches Kubernetes VolumeAttachment objects
         # and triggers ControllerPublish/Unpublish against a CSI endpoint
         - name: csi-attacher
-          image: quay.io/k8scsi/csi-attacher:v1.0.1
+          image: quay.io/k8scsi/csi-attacher:v1.1.1
           imagePullPolicy: IfNotPresent
           args:
             - --v=3
@@ -186,7 +186,7 @@ spec:
 #            - name: socket-dir
 #              mountPath: /var/lib/csi/sockets/pluginproxy
         - name: driver
-          image: 10.3.30.75:5000/edgefs-csi:debug
+          image: edgefs/edgefs-csi:latest
           imagePullPolicy: Always
           args:
             - --role=controller
@@ -278,7 +278,7 @@ spec:
         # 1) registers the CSI driver with kubelet
         # 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object
         - name: driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.0.1
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
           imagePullPolicy: IfNotPresent
           args:
             - --v=3
@@ -300,7 +300,7 @@ spec:
             capabilities:
               add: ['SYS_ADMIN']
             allowPrivilegeEscalation: true
-          image: 10.3.30.75:5000/edgefs-csi:debug
+          image: edgefs/edgefs-csi:latest
           imagePullPolicy: Always
           args:
             - --role=node
